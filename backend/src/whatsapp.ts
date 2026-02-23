@@ -6,6 +6,7 @@ import QRCode from 'qrcode';
 
 // Store active sockets
 export const activeSockets: Record<string, any> = {};
+export const pendingSockets: Record<string, any> = {};
 export const qrCodes: Record<string, string> = {};
 
 // We store sessions locally for now. Later we will move this to Firebase.
@@ -31,6 +32,8 @@ export const initWhatsAppSocket = async (businessId: string) => {
         printQRInTerminal: false,
     });
 
+    pendingSockets[businessId] = sock;
+
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', async (update) => {
@@ -52,6 +55,7 @@ export const initWhatsAppSocket = async (businessId: string) => {
             console.log(`[WHATSAPP] Connection closed for ${businessId} due to ${lastDisconnect?.error}, reconnecting: ${shouldReconnect}`);
 
             delete activeSockets[businessId];
+            delete pendingSockets[businessId];
             delete qrCodes[businessId];
 
             if (shouldReconnect) {
@@ -64,6 +68,7 @@ export const initWhatsAppSocket = async (businessId: string) => {
         } else if (connection === 'open') {
             console.log(`[WHATSAPP] Connected! Socket ready for ${businessId}`);
             activeSockets[businessId] = sock;
+            delete pendingSockets[businessId];
             delete qrCodes[businessId]; // Clear the QR once connected
         }
     });
@@ -110,4 +115,15 @@ export const initWhatsAppSocket = async (businessId: string) => {
     });
 
     return sock;
+};
+
+export const getPairingCode = async (businessId: string, phoneNumber: string) => {
+    const sock = pendingSockets[businessId] || activeSockets[businessId];
+    if (!sock) {
+        throw new Error("WhatsApp socket not initialized for this business. Please initiate connection first.");
+    }
+    // Clean phone number (remove +, -, spaces)
+    const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
+    const code = await sock.requestPairingCode(cleanPhone);
+    return code;
 };

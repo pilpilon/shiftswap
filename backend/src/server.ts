@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import { initWhatsAppSocket, activeSockets, qrCodes } from './whatsapp';
+import { initWhatsAppSocket, activeSockets, qrCodes, pendingSockets, getPairingCode } from './whatsapp';
 
 dotenv.config();
 
@@ -43,7 +43,7 @@ app.post('/api/whatsapp/connect', async (req, res) => {
 
     // Start socket creation in background. 
     // It will populate qrCodes[businessId] when ready.
-    if (!qrCodes[businessId]) {
+    if (!qrCodes[businessId] && !pendingSockets[businessId]) {
         initWhatsAppSocket(businessId);
     }
 
@@ -57,6 +57,28 @@ app.post('/api/whatsapp/connect', async (req, res) => {
             res.json({ status: 'pending', message: 'Generating QR...' });
         }
     }, 2000);
+});
+
+// Endpoint to get a pairing code
+app.post('/api/whatsapp/pairing-code', async (req, res) => {
+    const { businessId, phoneNumber } = req.body;
+
+    if (!businessId || !phoneNumber) {
+        return res.status(400).json({ error: 'businessId and phoneNumber are required' });
+    }
+
+    try {
+        if (!qrCodes[businessId] && !pendingSockets[businessId] && !activeSockets[businessId]) {
+            initWhatsAppSocket(businessId);
+            await new Promise(resolve => setTimeout(resolve, 3000)); // wait a bit for connection update
+        }
+
+        const code = await getPairingCode(businessId, phoneNumber);
+        res.json({ code });
+    } catch (err: any) {
+        console.error("Pairing code error:", err);
+        res.status(500).json({ error: err.message || 'Failed to request pairing code' });
+    }
 });
 
 // Polling endpoint for frontend to check connection status

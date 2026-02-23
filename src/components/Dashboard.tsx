@@ -186,6 +186,9 @@ function SettingsView() {
     const { user, logout } = useAuth();
     const { settings, updateSettings } = useSettings();
     const [qrCodeData, setQrCodeData] = useState<string | null>(null);
+    const [pairingCode, setPairingCode] = useState<string | null>(null);
+    const [phoneNumber, setPhoneNumber] = useState('');
+    const [isGeneratingPairingCode, setIsGeneratingPairingCode] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isConnected, setIsConnected] = useState(false);
 
@@ -215,34 +218,97 @@ function SettingsView() {
         return () => { isMounted = false; };
     }, [businessId]);
 
+    // Cleanup interval on unmount or when pairing/qr succeeds
+    const startPolling = () => {
+        const pollInterval = setInterval(async () => {
+            try {
+                const pollRes = await fetch(`${API_URL}/api/whatsapp/status/${businessId}`);
+                const pollData = await pollRes.json();
+
+                if (pollData.status === 'connected') {
+                    clearInterval(pollInterval);
+                    setIsConnected(true);
+                    setQrCodeData(null);
+                    setPairingCode(null);
+                    setIsGenerating(false);
+                    setIsGeneratingPairingCode(false);
+                } else if (!pairingCode && pollData.qr && pollData.qr !== qrCodeData) {
+                    setQrCodeData(pollData.qr);
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }, 2000);
+    };
+
+    const handlePairingCode = async () => {
+        if (!phoneNumber) return alert("נא להזין מספר טלפון");
+        setIsGeneratingPairingCode(true);
+        try {
+            const res = await fetch(`${API_URL}/api/whatsapp/pairing-code`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ businessId, phoneNumber: '972' + phoneNumber.replace(/^0/, '') }) // basic IL format
+            });
+            const data = await res.json();
+
+            if (data.code) {
+                setPairingCode(data.code);
+                setQrCodeData(null); // Ensure QR is hidden
+                startPolling();
+            } else if (data.status === 'connected') {
+                setIsConnected(true);
+            } else {
+                alert(data.error || "שגיאה ביצירת קוד אוטומטי");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("שגיאת התחברות לשרת");
+        } finally {
+            setIsGeneratingPairingCode(false);
+        }
+    };
+
+
     return (
         <div className="space-y-6 pb-24 md:pb-8">
             <h2 className="text-2xl font-bold text-slate-800 hidden md:block">הגדרות המערכת ומשא ומתן</h2>
 
-            {/* QR display modal */}
+            {/* QR / Pairing Code display modal */}
             <AnimatePresence>
-                {qrCodeData && (
+                {(qrCodeData || pairingCode) && (
                     <motion.div
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                         className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
-                        onClick={() => setQrCodeData(null)}
+                        onClick={() => { setQrCodeData(null); setPairingCode(null); }}
                     >
                         <motion.div
                             initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
                             className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl relative text-center"
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <button onClick={() => setQrCodeData(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+                            <button onClick={() => { setQrCodeData(null); setPairingCode(null); }} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
                             </button>
                             <h3 className="text-xl font-bold text-slate-800 mb-2">קישור מכשיר לוואטסאפ</h3>
-                            <p className="text-sm text-slate-600 mb-6">פתח את הגדרות הוואטסאפ במכשירך &gt; מכשירים מקושרים &gt; סרוק את הקוד</p>
 
-                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-center">
-                                <img src={qrCodeData} alt="WhatsApp QR Code" className="w-64 h-64 mix-blend-multiply" />
-                            </div>
+                            {pairingCode ? (
+                                <>
+                                    <p className="text-sm text-slate-600 mb-6 font-medium">פתחו את וואטסאפ בטלפון שלכם ויופיע חלון להכנסת הקוד הבא:</p>
+                                    <div className="bg-slate-50 p-6 rounded-2xl border border-brand-blue/20 flex items-center justify-center mb-4">
+                                        <span className="text-4xl font-black text-brand-blue tracking-[0.2em]">{pairingCode}</span>
+                                    </div>
+                                </>
+                            ) : qrCodeData ? (
+                                <>
+                                    <p className="text-sm text-slate-600 mb-6">פתח את הגדרות הוואטסאפ במכשירך &gt; מכשירים מקושרים &gt; סרוק את הקוד</p>
+                                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-center">
+                                        <img src={qrCodeData} alt="WhatsApp QR Code" className="w-64 h-64 mix-blend-multiply" />
+                                    </div>
+                                </>
+                            ) : null}
 
-                            <p className="text-xs text-brand-blue font-medium mt-4 animate-pulse">ממתין לסריקה...</p>
+                            <p className="text-xs text-brand-blue font-medium mt-4 animate-pulse">ממתין לאישור ממכשירך...</p>
                         </motion.div>
                     </motion.div>
                 )}
@@ -257,20 +323,20 @@ function SettingsView() {
                             <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z" />
                         </svg>
                     </div>
-                    <h3 className="font-bold text-slate-800 text-lg">חיבור לוואטסאפ (סריקת ברקוד)</h3>
+                    <h3 className="font-bold text-slate-800 text-lg">חיבור לוואטסאפ: סריקת ברקוד / קוד לסלולר</h3>
                 </div>
                 <div className="p-6">
                     <div className="flex flex-col md:flex-row gap-6 items-start">
-                        <div className="flex-1 space-y-4">
-                            <p className="text-sm text-slate-600 leading-relaxed">
-                                על מנת שהבוט של ShiftSwap יוכל לנהל משא ומתן באופן אוטומטי מול העובדים, עליך לקשר את מספר הוואטסאפ שלך (או מספר ייעודי לעסק) באמצעות סריקת QR, ממש כמו ב-WhatsApp Web.
+                        <div className="flex-1 w-full space-y-4">
+                            <p className="text-sm text-slate-600 leading-relaxed max-w-2xl">
+                                על מנת שהבוט של ShiftSwap יוכל לנהל משא ומתן באופן אוטומטי מול העובדים, עליך לקשר מספר לוואטסאפ. תוכל לסרוק קוד QR אם אתה ממחשב, או להפיק קוד קישור (Pairing Code) ישירות מהנייד.
                             </p>
-                            <div className="space-y-3">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">מספר מחובר</label>
-                                    <div className="flex gap-2">
-                                        <input type="text" disabled value={isConnected ? "מחובר \u2705" : "לא מחובר"} className={`w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 font-medium ${isConnected ? 'text-emerald-600' : 'text-slate-500'}`} />
-                                        {isConnected ? (
+                            <div className="space-y-4">
+                                {isConnected ? (
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">פרופיל נוכחי</label>
+                                        <div className="flex flex-col sm:flex-row gap-3">
+                                            <input type="text" disabled value="מחובר &#x2705;" className={`w-full max-w-sm bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 font-medium text-emerald-600`} />
                                             <button
                                                 onClick={async () => {
                                                     try {
@@ -288,62 +354,72 @@ function SettingsView() {
                                             >
                                                 ניתוק חשבון
                                             </button>
-                                        ) : (
-                                            <button
-                                                disabled={isGenerating || isConnected}
-                                                onClick={async () => {
-                                                    setIsGenerating(true);
-                                                    try {
-                                                        const res = await fetch(`${API_URL}/api/whatsapp/connect`, {
-                                                            method: 'POST',
-                                                            headers: { 'Content-Type': 'application/json' },
-                                                            body: JSON.stringify({ businessId })
-                                                        });
-                                                        const data = await res.json();
-
-                                                        if (data.status === 'connected') {
-                                                            setIsConnected(true);
-                                                            setIsGenerating(false);
-                                                            return;
-                                                        }
-
-                                                        if (data.qr) {
-                                                            setQrCodeData(data.qr);
-                                                        }
-
-                                                        // Continuous polling
-                                                        const pollInterval = setInterval(async () => {
-                                                            try {
-                                                                const pollRes = await fetch(`${API_URL}/api/whatsapp/status/${businessId}`);
-                                                                const pollData = await pollRes.json();
-
-                                                                if (pollData.status === 'connected') {
-                                                                    clearInterval(pollInterval);
-                                                                    setIsConnected(true);
-                                                                    setQrCodeData(null);
-                                                                    setIsGenerating(false);
-                                                                } else if (pollData.qr && pollData.qr !== qrCodeData) {
-                                                                    setQrCodeData(pollData.qr);
-                                                                }
-                                                            } catch (err) {
-                                                                console.error(err);
-                                                            }
-                                                        }, 2000);
-
-                                                    } catch (err) {
-                                                        alert("Backend server not running. (Did you run 'npm run dev' inside backend?)");
-                                                        setIsGenerating(false);
-                                                    }
-
-                                                }}
-                                                className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl font-medium transition-colors border border-emerald-600 shadow-sm whitespace-nowrap disabled:opacity-50"
-                                            >
-                                                {isGenerating ? 'טוען קוד...' : 'קשר מכשיר (QR)'}
-                                            </button>
-                                        )}
+                                        </div>
                                     </div>
-                                    <p className="text-xs text-slate-400 mt-2">* אין צורך בחשבון WhatsApp Business כדי להתחיל.</p>
-                                </div>
+                                ) : (
+                                    <>
+                                        <div className="flex flex-col sm:flex-row gap-4 pt-2 border-t border-slate-100 mt-2">
+                                            <div className="space-y-2 flex-1 pl-4 sm:border-l border-slate-100">
+                                                <label className="block text-sm font-bold text-slate-800">אפשרות 1: מטלפון אחר / ממחשב</label>
+                                                <button
+                                                    disabled={isGenerating || isGeneratingPairingCode || isConnected}
+                                                    onClick={async () => {
+                                                        setIsGenerating(true);
+                                                        try {
+                                                            const res = await fetch(`${API_URL}/api/whatsapp/connect`, {
+                                                                method: 'POST',
+                                                                headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({ businessId })
+                                                            });
+                                                            const data = await res.json();
+
+                                                            if (data.status === 'connected') {
+                                                                setIsConnected(true);
+                                                                setIsGenerating(false);
+                                                                return;
+                                                            }
+
+                                                            if (data.qr) {
+                                                                setQrCodeData(data.qr);
+                                                            }
+
+                                                            startPolling();
+
+                                                        } catch (err) {
+                                                            alert("Backend server not running.");
+                                                            setIsGenerating(false);
+                                                        }
+                                                    }}
+                                                    className="w-full bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-3 rounded-xl font-bold transition-all shadow-sm disabled:opacity-50"
+                                                >
+                                                    {isGenerating ? 'טוען קוד...' : 'הצג קוד QR לסריקה'}
+                                                </button>
+                                            </div>
+
+                                            <div className="space-y-2 flex-1 pt-4 sm:pt-0">
+                                                <label className="block text-sm font-bold text-slate-800">אפשרות 2: מאותו הטלפון (Pairing Code)</label>
+                                                <p className="text-xs text-slate-500">הזן את המספר שממנו תרצה לשלוח הודעות תקבל קוד אימות להזנה באפליקציה.</p>
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="tel"
+                                                        placeholder="05X-XXXXXXX"
+                                                        value={phoneNumber}
+                                                        onChange={(e) => setPhoneNumber(e.target.value)}
+                                                        className="flex-1 bg-white px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                                                        dir="ltr"
+                                                    />
+                                                    <button
+                                                        disabled={isGeneratingPairingCode || !phoneNumber || isGenerating}
+                                                        onClick={handlePairingCode}
+                                                        className="bg-brand-blue hover:bg-brand-blue/90 text-white px-4 py-3 rounded-xl text-sm font-bold shadow-sm disabled:opacity-50 transition-colors whitespace-nowrap"
+                                                    >
+                                                        {isGeneratingPairingCode ? 'שולח...' : 'צור קוד'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>
