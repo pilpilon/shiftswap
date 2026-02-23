@@ -82,6 +82,15 @@ export const initWhatsAppSocket = async (businessId: string) => {
                 console.log(`Received message from ${msg.key.remoteJid}: `, incomingText);
 
                 try {
+                    // Check if sender is an accepted employee
+                    const { isEmployeePhone } = await import('./firebase');
+                    const isEmployee = await isEmployeePhone(businessId, msg.key.remoteJid!);
+
+                    if (!isEmployee) {
+                        console.log(`[WHATSAPP] Ignoring message from unauthorized number: ${msg.key.remoteJid}`);
+                        return; // Ignore
+                    }
+
                     // Route to AI
                     const { processIncomingMessage } = await import('./ai');
                     const aiResponse = await processIncomingMessage(businessId, msg.key.remoteJid!, incomingText);

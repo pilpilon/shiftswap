@@ -63,3 +63,38 @@ export async function saveNegotiationLog(businessId: string, employeePhone: stri
         console.error("Failed to save negotiation log:", err);
     }
 }
+
+function normalizePhone(phone: string): string {
+    let clean = phone.replace(/\D/g, '');
+    if (clean.startsWith('0')) {
+        clean = '972' + clean.slice(1);
+    }
+    return clean;
+}
+
+export async function isEmployeePhone(businessId: string, phoneJid: string): Promise<boolean> {
+    if (!db) return true; // Default to true if not connected to db (fallback)
+
+    // Example format: 972501234567@s.whatsapp.net
+    const senderPhone = phoneJid.split('@')[0];
+    const normalizedSender = normalizePhone(senderPhone);
+
+    try {
+        const staffSnapshot = await db.collection('staff')
+            .where('businessId', '==', businessId)
+            .get();
+        for (const doc of staffSnapshot.docs) {
+            const data = doc.data();
+            if (data.phone) {
+                const normalizedStaffPhone = normalizePhone(data.phone);
+                if (normalizedStaffPhone === normalizedSender) {
+                    return true;
+                }
+            }
+        }
+    } catch (err) {
+        console.error("Error checking employee phone:", err);
+    }
+
+    return false;
+}
