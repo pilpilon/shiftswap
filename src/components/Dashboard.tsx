@@ -179,11 +179,23 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
 
 
+import { useSettings } from '../hooks/useSettings';
+import type { AppSettings } from '../hooks/useSettings';
+
 function SettingsView() {
     const { user, logout } = useAuth();
+    const { settings, updateSettings } = useSettings();
     const [qrCodeData, setQrCodeData] = useState<string | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isConnected, setIsConnected] = useState(false);
+
+    // We maintain a local copy of settings to allow editing before saving
+    const [localSettings, setLocalSettings] = useState<AppSettings>(settings);
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        setLocalSettings(settings);
+    }, [settings]);
 
     const businessId = user?.businessId || 'demo-business-123';
 
@@ -348,7 +360,12 @@ function SettingsView() {
                         <div className="space-y-4">
                             <label className="flex items-start gap-4 cursor-pointer group p-3 -m-3 rounded-xl hover:bg-slate-50 transition-colors">
                                 <div className="relative flex items-center justify-center mt-1 shrink-0">
-                                    <input type="checkbox" className="peer sr-only" defaultChecked />
+                                    <input
+                                        type="checkbox"
+                                        className="peer sr-only"
+                                        checked={localSettings.enableWeekendSwaps}
+                                        onChange={(e) => setLocalSettings({ ...localSettings, enableWeekendSwaps: e.target.checked })}
+                                    />
                                     <div className="w-5 h-5 border-2 border-slate-300 rounded group-hover:border-brand-blue peer-checked:bg-brand-blue peer-checked:border-brand-blue transition-all"></div>
                                     <CheckCircle2 className="w-3.5 h-3.5 text-white absolute opacity-0 peer-checked:opacity-100 transition-opacity" />
                                 </div>
@@ -360,7 +377,12 @@ function SettingsView() {
 
                             <label className="flex items-start gap-4 cursor-pointer group p-3 -m-3 rounded-xl hover:bg-slate-50 transition-colors">
                                 <div className="relative flex items-center justify-center mt-1 shrink-0">
-                                    <input type="checkbox" className="peer sr-only" defaultChecked />
+                                    <input
+                                        type="checkbox"
+                                        className="peer sr-only"
+                                        checked={localSettings.enableCashBonus}
+                                        onChange={(e) => setLocalSettings({ ...localSettings, enableCashBonus: e.target.checked })}
+                                    />
                                     <div className="w-5 h-5 border-2 border-slate-300 rounded group-hover:border-brand-blue peer-checked:bg-brand-blue peer-checked:border-brand-blue transition-all"></div>
                                     <CheckCircle2 className="w-3.5 h-3.5 text-white absolute opacity-0 peer-checked:opacity-100 transition-opacity" />
                                 </div>
@@ -372,7 +394,12 @@ function SettingsView() {
 
                             <label className="flex items-start gap-4 cursor-pointer group p-3 -m-3 rounded-xl hover:bg-slate-50 transition-colors">
                                 <div className="relative flex items-center justify-center mt-1 shrink-0">
-                                    <input type="checkbox" className="peer sr-only" />
+                                    <input
+                                        type="checkbox"
+                                        className="peer sr-only"
+                                        checked={localSettings.enableTaxi}
+                                        onChange={(e) => setLocalSettings({ ...localSettings, enableTaxi: e.target.checked })}
+                                    />
                                     <div className="w-5 h-5 border-2 border-slate-300 rounded group-hover:border-brand-blue peer-checked:bg-brand-blue peer-checked:border-brand-blue transition-all"></div>
                                     <CheckCircle2 className="w-3.5 h-3.5 text-white absolute opacity-0 peer-checked:opacity-100 transition-opacity" />
                                 </div>
@@ -394,7 +421,11 @@ function SettingsView() {
                         <div className="p-6 space-y-5">
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-2">טון הדיבור של הבוט לעובדים</label>
-                                <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:bg-white transition-all">
+                                <select
+                                    value={localSettings.botTone}
+                                    onChange={(e) => setLocalSettings({ ...localSettings, botTone: e.target.value })}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:bg-white transition-all"
+                                >
                                     <option>צעיר וקליל (אחי, מה קורה?)</option>
                                     <option>רשמי ומקצועי (שלום רב)</option>
                                     <option>סחבקי ומתגמל (אלוף, יש מצב ש...)</option>
@@ -403,7 +434,12 @@ function SettingsView() {
 
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-2">מספר השעות לאזהרה במקרה של חוסר באיש צוות</label>
-                                <input type="number" defaultValue={24} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:bg-white transition-all" />
+                                <input
+                                    type="number"
+                                    value={localSettings.warningHours}
+                                    onChange={(e) => setLocalSettings({ ...localSettings, warningHours: Number(e.target.value) })}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:bg-white transition-all"
+                                />
                                 <p className="text-xs text-slate-500 mt-2">מספר השעות לפני תחילת משמרת ריקה בהן הבוט יתחיל לפנות עצמאית לשאר הצוות.</p>
                             </div>
 
@@ -416,7 +452,8 @@ function SettingsView() {
                                     rows={4}
                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:bg-white transition-all resize-none"
                                     placeholder="לדוגמה: אם עובד לוקח משמרת שנייה ברצף, תציע לחסום לו את השבת כדי שינוח. אל תציע בונוסים למי שאיחר החודש."
-                                    defaultValue="אם עובד לוקח כפולה, הבטח לו משמרת קלה ביום ראשון. אל תיתן מוניות אם המרחק קצר מ-3 קילומטרים."
+                                    value={localSettings.customRules}
+                                    onChange={(e) => setLocalSettings({ ...localSettings, customRules: e.target.value })}
                                 ></textarea>
                                 <p className="text-xs text-slate-500 mt-2">הנחיות ישירות למודל השפה שיקבעו את אסטרטגיית המשא ומתן של הבוט.</p>
                             </div>
@@ -424,9 +461,17 @@ function SettingsView() {
                     </div>
 
                     <div className="space-y-3">
-                        <button className="w-full bg-brand-blue hover:bg-brand-blue/90 text-white font-bold py-4 px-4 rounded-xl shadow-lg shadow-brand-blue/20 flex items-center justify-center gap-2 transition-all active:scale-95">
+                        <button
+                            disabled={isSaving}
+                            onClick={async () => {
+                                setIsSaving(true);
+                                await updateSettings(localSettings);
+                                setIsSaving(false);
+                            }}
+                            className="w-full bg-brand-blue hover:bg-brand-blue/90 text-white font-bold py-4 px-4 rounded-xl shadow-lg shadow-brand-blue/20 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                        >
                             <Save className="w-5 h-5 shrink-0" />
-                            שמור הגדרות מערכת
+                            {isSaving ? 'שומר...' : 'שמור הגדרות מערכת'}
                         </button>
                         <button
                             onClick={async () => {
