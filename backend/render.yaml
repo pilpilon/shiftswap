@@ -1,0 +1,21 @@
+{
+  "services": [
+    {
+      "type": "web",
+      "name": "shiftswap-backend",
+      "env": "node",
+      "buildCommand": "npm install && npm run build",
+      "startCommand": "npm start",
+      "envVars": [
+        {
+          "key": "GEMINI_API_KEY",
+          "sync": false
+        },
+        {
+          "key": "GOOGLE_APPLICATION_CREDENTIALS",
+          "value": "./service-account.json"
+        }
+      ]
+    }
+  ]
+}

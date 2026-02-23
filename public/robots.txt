@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+# Block app internals from crawlers
+Disallow: /dashboard
+Disallow: /onboarding
+
+Sitemap: https://shiftswap.ai/sitemap.xml
