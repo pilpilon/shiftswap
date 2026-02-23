@@ -76,6 +76,11 @@ export const initWhatsAppSocket = async (businessId: string) => {
 
         const msg = m.messages[0];
         if (!msg.key.fromMe && m.type === 'notify' && msg.message) {
+            // Ignore group messages to prevent embarrassing automatic replies in groups
+            if (msg.key.remoteJid?.endsWith('@g.us')) {
+                return;
+            }
+
             const incomingText = msg.message.conversation || msg.message.extendedTextMessage?.text;
 
             if (incomingText) {
