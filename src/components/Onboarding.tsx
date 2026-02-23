@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Store, Save, ChevronLeft, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 interface OnboardingProps {
@@ -22,9 +22,12 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             setSaving(true);
             try {
                 if (user?.id) {
-                    await updateDoc(doc(db, 'users', user.id), {
-                        businessName: businessName
-                    });
+                    await setDoc(doc(db, 'users', user.id), {
+                        businessName: businessName,
+                        name: user.name || 'Google User',
+                        businessId: user.id,
+                        role: 'manager'
+                    }, { merge: true });
                 }
                 onComplete();
             } catch (err) {
