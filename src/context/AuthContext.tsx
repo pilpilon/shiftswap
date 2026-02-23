@@ -17,6 +17,7 @@ export interface User {
     businessName: string;
     businessId: string; // also Firebase UID for strict tenancy
     role: 'manager' | 'admin';
+    isPro?: boolean;
 }
 
 interface AuthContextType {
@@ -48,7 +49,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                             name: data.name || 'User',
                             businessName: data.businessName || 'My Business',
                             businessId: firebaseUser.uid,
-                            role: data.role || 'manager'
+                            role: data.role || 'manager',
+                            isPro: data.isPro || false
                         });
                     } else {
                         // Fallback if doc doesn't exist yet but user is auth'd
@@ -57,7 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                             name: firebaseUser.email || 'User',
                             businessName: 'My Business',
                             businessId: firebaseUser.uid,
-                            role: 'manager'
+                            role: 'manager',
+                            isPro: false
                         });
                     }
                 } catch (err) {
@@ -87,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             businessName,
             businessId: uid, // Strict multi-tenancy master key
             role: 'manager',
+            isPro: false,
             createdAt: new Date().toISOString()
         });
     };
@@ -111,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 businessName: 'העסק שלי', // Default fallback
                 businessId: uid,
                 role: 'manager',
+                isPro: false,
                 createdAt: new Date().toISOString()
             });
         }

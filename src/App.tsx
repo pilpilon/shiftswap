@@ -3,6 +3,7 @@ import LandingPage from './components/LandingPage';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Onboarding from './components/Onboarding';
+import Paywall from './components/Paywall';
 import PrivacyPolicy from './components/legal/PrivacyPolicy';
 import TermsOfService from './components/legal/TermsOfService';
 import RefundPolicy from './components/legal/RefundPolicy';
@@ -23,7 +24,9 @@ function AppContent() {
         isAuthenticated ? (
           user?.businessName === "My Business" || user?.businessName === "הקפה של ירדן"
             ? <Onboarding onComplete={() => window.location.reload()} />
-            : <Dashboard onLogout={() => window.location.reload()} />
+            : !user?.isPro
+              ? <Paywall />
+              : <Dashboard onLogout={() => window.location.reload()} />
         ) : <Navigate to="/login" replace />
       } />
       <Route path="/privacy" element={<PrivacyPolicy />} />
