@@ -29,7 +29,10 @@ export function useShifts(businessId: string | undefined) {
             where('businessId', '==', businessId)
         );
 
+        const failSafe = setTimeout(() => setLoading(false), 3000);
+
         const unsubscribe = onSnapshot(q, (snapshot) => {
+            clearTimeout(failSafe);
             const shiftsData: Shift[] = [];
             snapshot.forEach((doc) => {
                 shiftsData.push({ id: doc.id, ...doc.data() } as Shift);
@@ -46,7 +49,10 @@ export function useShifts(businessId: string | undefined) {
             setLoading(false);
         });
 
-        return () => unsubscribe();
+        return () => {
+            clearTimeout(failSafe);
+            unsubscribe();
+        };
     }, [businessId]);
 
     const addShift = async (date: string, title: string, totalRequired: number, isUrgent: boolean = false) => {

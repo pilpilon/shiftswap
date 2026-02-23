@@ -15,6 +15,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ onLogout }: DashboardProps) {
+    const { user, logout } = useAuth();
     const [activeTab, setActiveTab] = useState('roster');
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
@@ -408,10 +409,22 @@ function SettingsView() {
                         </div>
                     </div>
 
-                    <button className="w-full bg-brand-blue hover:bg-brand-blue/90 text-white font-bold py-4 px-4 rounded-xl shadow-lg shadow-brand-blue/20 flex items-center justify-center gap-2 transition-all active:scale-95">
-                        <Save className="w-5 h-5 shrink-0" />
-                        שמור הגדרות מערכת
-                    </button>
+                    <div className="space-y-3">
+                        <button className="w-full bg-brand-blue hover:bg-brand-blue/90 text-white font-bold py-4 px-4 rounded-xl shadow-lg shadow-brand-blue/20 flex items-center justify-center gap-2 transition-all active:scale-95">
+                            <Save className="w-5 h-5 shrink-0" />
+                            שמור הגדרות מערכת
+                        </button>
+                        <button
+                            onClick={async () => {
+                                await logout();
+                                onLogout();
+                            }}
+                            className="w-full bg-red-50 hover:bg-red-100 text-red-600 font-bold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all border border-red-200"
+                        >
+                            <LogOut className="w-5 h-5 shrink-0" />
+                            התנתקות מהמערכת
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

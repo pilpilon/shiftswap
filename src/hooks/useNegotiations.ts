@@ -28,7 +28,10 @@ export function useNegotiations(businessId: string | undefined) {
             where('businessId', '==', businessId)
         );
 
+        const failSafe = setTimeout(() => setLoading(false), 3000);
+
         const unsubscribe = onSnapshot(q, (snapshot) => {
+            clearTimeout(failSafe);
             const logsData: NegotiationLog[] = [];
             snapshot.forEach((doc) => {
                 logsData.push({ id: doc.id, ...doc.data() } as NegotiationLog);
@@ -45,7 +48,10 @@ export function useNegotiations(businessId: string | undefined) {
             setLoading(false);
         });
 
-        return () => unsubscribe();
+        return () => {
+            clearTimeout(failSafe);
+            unsubscribe();
+        };
     }, [businessId]);
 
     return { logs, loading, error };

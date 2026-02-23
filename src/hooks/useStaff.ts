@@ -27,7 +27,10 @@ export function useStaff(businessId: string | undefined) {
             where('businessId', '==', businessId)
         );
 
+        const failSafe = setTimeout(() => setLoading(false), 3000);
+
         const unsubscribe = onSnapshot(q, (snapshot) => {
+            clearTimeout(failSafe);
             const staffData: StaffMember[] = [];
             snapshot.forEach((doc) => {
                 staffData.push({ id: doc.id, ...doc.data() } as StaffMember);
@@ -40,7 +43,10 @@ export function useStaff(businessId: string | undefined) {
             setLoading(false);
         });
 
-        return () => unsubscribe();
+        return () => {
+            clearTimeout(failSafe);
+            unsubscribe();
+        };
     }, [businessId]);
 
     const addStaffMember = async (name: string, phone: string, role: string) => {

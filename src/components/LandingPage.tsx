@@ -1,12 +1,11 @@
 ﻿// @ts-nocheck
 import { motion } from 'framer-motion';
 import { CalendarClock, MessageCircle, Zap, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
-interface LandingPageProps {
-    onLogin: () => void;
-}
+export default function LandingPage() {
+    const navigate = useNavigate();
 
-export default function LandingPage({ onLogin }: LandingPageProps) {
     return (
         <div className="flex flex-col min-h-screen">
             {/* Header */}
@@ -19,7 +18,7 @@ export default function LandingPage({ onLogin }: LandingPageProps) {
                         <span className="text-xl font-bold font-sans text-brand-blue">ShiftSwap<span className="text-brand-gold">.ai</span></span>
                     </div>
                     <button
-                        onClick={onLogin}
+                        onClick={() => navigate('/login')}
                         className="text-sm font-medium text-brand-blue hover:text-brand-blue/80 px-4 py-2 rounded-full transition-colors"
                     >
                         כניסת מנהלים
@@ -72,7 +71,7 @@ export default function LandingPage({ onLogin }: LandingPageProps) {
                                 className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4"
                             >
                                 <button
-                                    onClick={onLogin}
+                                    onClick={() => navigate('/login')}
                                     className="w-full sm:w-auto flex items-center justify-center gap-2 bg-brand-blue hover:bg-brand-blue/90 text-white px-8 py-4 rounded-full text-lg font-medium shadow-lg shadow-brand-blue/25 transition-all active:scale-95"
                                 >
                                     התחילו עכשיו חינם
