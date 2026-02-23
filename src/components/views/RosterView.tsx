@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../../../src/context/AuthContext';
-import { useShifts, Shift } from '../../../src/hooks/useShifts';
+import { useShifts, type Shift } from '../../../src/hooks/useShifts';
 import { Calendar, Plus, CheckCircle2, Loader2, Trash2, ChevronRight, ChevronLeft } from 'lucide-react';
 
 const getStartOfWeek = (date: Date) => {
