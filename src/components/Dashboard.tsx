@@ -15,7 +15,6 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ onLogout }: DashboardProps) {
-    const { user, logout } = useAuth();
     const [activeTab, setActiveTab] = useState('roster');
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
@@ -181,7 +180,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
 
 function SettingsView() {
-    const { user } = useAuth();
+    const { user, logout } = useAuth();
     const [qrCodeData, setQrCodeData] = useState<string | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isConnected, setIsConnected] = useState(false);
@@ -417,7 +416,7 @@ function SettingsView() {
                         <button
                             onClick={async () => {
                                 await logout();
-                                onLogout();
+                                window.location.reload();
                             }}
                             className="w-full bg-red-50 hover:bg-red-100 text-red-600 font-bold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all border border-red-200"
                         >
