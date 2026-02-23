@@ -210,8 +210,8 @@ export default function RosterView() {
                             <button
                                 onClick={() => updateSettings({ submissionDeadlineDay: -1 })}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${deadline === -1
-                                        ? 'bg-brand-blue text-white border-brand-blue'
-                                        : 'bg-white text-slate-600 border-slate-300 hover:border-brand-blue'
+                                    ? 'bg-brand-blue text-white border-brand-blue'
+                                    : 'bg-white text-slate-600 border-slate-300 hover:border-brand-blue'
                                     }`}
                             >
                                 ללא הגדרה
@@ -221,8 +221,8 @@ export default function RosterView() {
                                     key={day}
                                     onClick={() => updateSettings({ submissionDeadlineDay: day })}
                                     className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${deadline === day
-                                            ? 'bg-brand-blue text-white border-brand-blue'
-                                            : 'bg-white text-slate-600 border-slate-300 hover:border-brand-blue'
+                                        ? 'bg-brand-blue text-white border-brand-blue'
+                                        : 'bg-white text-slate-600 border-slate-300 hover:border-brand-blue'
                                         }`}
                                 >
                                     יום {WEEKDAY_LABELS_HE[day]}
@@ -263,8 +263,8 @@ export default function RosterView() {
                         <button
                             onClick={jumpToToday}
                             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${isCurrentWeek
-                                    ? 'bg-brand-blue/10 text-brand-blue'
-                                    : 'hover:bg-slate-100 text-slate-700'
+                                ? 'bg-brand-blue/10 text-brand-blue'
+                                : 'hover:bg-slate-100 text-slate-700'
                                 }`}
                         >
                             השבוע
@@ -478,16 +478,25 @@ export default function RosterView() {
                                                 <ShiftCard
                                                     key={shift.id}
                                                     shift={shift}
-                                                    onRemove={() => {
+                                                    onRemove={(e) => {
+                                                        e.stopPropagation();
+                                                        e.preventDefault();
                                                         if (window.confirm('האם אתה בטוח שברצונך למחוק את המשמרת?')) {
-                                                            removeShift(shift.id);
+                                                            removeShift(shift.id).catch(err => {
+                                                                console.error("Failed to delete shift:", err);
+                                                                alert("שגיאה במחיקת המשמרת");
+                                                            });
                                                             if (editingShiftId === shift.id) {
                                                                 setAddingDate(null);
                                                                 setEditingShiftId(null);
                                                             }
                                                         }
                                                     }}
-                                                    onEdit={() => handleEditClick(shift)}
+                                                    onEdit={(e) => {
+                                                        e.stopPropagation();
+                                                        e.preventDefault();
+                                                        handleEditClick(shift);
+                                                    }}
                                                 />
                                             ))}
                                         </div>
@@ -512,7 +521,7 @@ export default function RosterView() {
 // ────────────────────────────────────────────────────────────────────────────
 // ShiftCard — fixed RTL layout, no text truncation
 // ────────────────────────────────────────────────────────────────────────────
-function ShiftCard({ shift, onRemove, onEdit }: { shift: Shift; onRemove: () => void; onEdit: () => void }) {
+function ShiftCard({ shift, onRemove, onEdit }: { shift: Shift; onRemove: (e: React.MouseEvent) => void; onEdit: (e: React.MouseEvent) => void }) {
     const roles = shift.roleRequirements ?? [];
     const isFilled = shift.filledCount >= shift.totalRequired;
 
@@ -538,18 +547,20 @@ function ShiftCard({ shift, onRemove, onEdit }: { shift: Shift; onRemove: () => 
                         </span>
                     )}
                     <button
+                        type="button"
                         onClick={onEdit}
-                        className="text-slate-400 hover:text-brand-blue transition-colors p-1.5 rounded-full hover:bg-blue-50"
+                        className="text-slate-400 hover:text-brand-blue transition-colors p-2 md:p-1.5 rounded-full hover:bg-blue-50"
                         title="ערוך משמרת"
                     >
-                        <Edit2 className="w-4 h-4" />
+                        <Edit2 className="w-5 h-5 md:w-4 md:h-4" />
                     </button>
                     <button
+                        type="button"
                         onClick={onRemove}
-                        className="text-slate-400 hover:text-red-500 transition-colors p-1.5 rounded-full hover:bg-red-50"
+                        className="text-slate-400 hover:text-red-500 transition-colors p-2 md:p-1.5 rounded-full hover:bg-red-50"
                         title="מחק משמרת"
                     >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-5 h-5 md:w-4 md:h-4" />
                     </button>
                 </div>
             </div>
