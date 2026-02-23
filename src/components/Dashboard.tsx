@@ -204,7 +204,7 @@ function SettingsView() {
     }, [businessId]);
 
     return (
-        <div className="space-y-6 pb-8">
+        <div className="space-y-6 pb-24 md:pb-8">
             <h2 className="text-2xl font-bold text-slate-800 hidden md:block">הגדרות המערכת ומשא ומתן</h2>
 
             {/* QR display modal */}
