@@ -5,6 +5,8 @@ import { NotificationsTray } from './Notifications';
 import UpgradeModal from './UpgradeModal';
 import { useAuth } from '../context/AuthContext';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+
 interface DashboardProps {
     onLogout: () => void;
 }
@@ -378,7 +380,7 @@ function SettingsView() {
         let isMounted = true;
         const checkStatus = async () => {
             try {
-                const res = await fetch(`http://localhost:4000/api/whatsapp/status/${businessId}`);
+                const res = await fetch(`${API_URL}/api/whatsapp/status/${businessId}`);
                 const data = await res.json();
                 if (isMounted && data.status === 'connected') setIsConnected(true);
             } catch (err) {
@@ -448,7 +450,7 @@ function SettingsView() {
                                             <button
                                                 onClick={async () => {
                                                     try {
-                                                        await fetch('http://localhost:4000/api/whatsapp/disconnect', {
+                                                        await fetch(`${API_URL}/api/whatsapp/disconnect`, {
                                                             method: 'POST',
                                                             headers: { 'Content-Type': 'application/json' },
                                                             body: JSON.stringify({ businessId })
@@ -468,7 +470,7 @@ function SettingsView() {
                                                 onClick={async () => {
                                                     setIsGenerating(true);
                                                     try {
-                                                        const res = await fetch('http://localhost:4000/api/whatsapp/connect', {
+                                                        const res = await fetch(`${API_URL}/api/whatsapp/connect`, {
                                                             method: 'POST',
                                                             headers: { 'Content-Type': 'application/json' },
                                                             body: JSON.stringify({ businessId })
@@ -488,7 +490,7 @@ function SettingsView() {
                                                         // Continuous polling
                                                         const pollInterval = setInterval(async () => {
                                                             try {
-                                                                const pollRes = await fetch(`http://localhost:4000/api/whatsapp/status/${businessId}`);
+                                                                const pollRes = await fetch(`${API_URL}/api/whatsapp/status/${businessId}`);
                                                                 const pollData = await pollRes.json();
 
                                                                 if (pollData.status === 'connected') {
@@ -519,12 +521,6 @@ function SettingsView() {
                                     <p className="text-xs text-slate-400 mt-2">* אין צורך בחשבון WhatsApp Business כדי להתחיל.</p>
                                 </div>
                             </div>
-                        </div>
-                        <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 w-full md:w-64 shrink-0">
-                            <h4 className="font-bold text-emerald-800 text-sm mb-2 flex items-center gap-2">
-                                <CheckCircle2 className="w-4 h-4" /> סטטוס חיבור
-                            </h4>
-                            <p className="text-slate-600 text-sm">המערכת כרגע במצב <span className="font-bold border-b border-dashed border-slate-400">הדמיה (Mock)</span>. הודעות לא נשלחות באמת.</p>
                         </div>
                     </div>
                 </div>

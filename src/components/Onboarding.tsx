@@ -73,7 +73,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                                 className="space-y-6 text-center"
                             >
                                 <div className="bg-blue-50 text-brand-blue p-6 rounded-2xl border border-blue-100">
-                                    <h3 className="font-bold text-lg mb-2">חיבור לוואטסאפ (הדגמה)</h3>
+                                    <h3 className="font-bold text-lg mb-2">חיבור לוואטסאפ</h3>
                                     <p className="text-sm opacity-90 mb-4">
                                         החשבון של <span className="font-bold">{businessName || 'העסק שלך'}</span> מוכן לפעולה.
                                         מכאן תועברו למערכת הניהול.
