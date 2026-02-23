@@ -138,8 +138,8 @@ export default function RosterView() {
                     <button
                         onClick={jumpToToday}
                         className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${isCurrentWeek
-                                ? 'bg-brand-blue/10 text-brand-blue'
-                                : 'hover:bg-slate-100 text-slate-700'
+                            ? 'bg-brand-blue/10 text-brand-blue'
+                            : 'hover:bg-slate-100 text-slate-700'
                             }`}
                     >
                         השבוע
@@ -379,7 +379,7 @@ function ShiftCard({ shift, onRemove }: { shift: Shift; onRemove: () => void }) 
                         <CheckCircle2 className="w-5 h-5 text-green-500" />
                     ) : (
                         <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                            חסר איש צוות
+                            ממתין לאיוש
                         </span>
                     )}
                     <button

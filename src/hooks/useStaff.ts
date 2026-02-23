@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { type SkillLevel } from './useShifts'; // Import SkillLevel
 
 export interface StaffMember {
     id: string;
     businessId: string;
     name: string;
     phone: string;
-    role: string;
+    roles: string[]; // Changed from single role string to string[]
+    skillLevel: SkillLevel; // Added skill level
 }
 
 export function useStaff(businessId: string | undefined) {
@@ -32,8 +34,18 @@ export function useStaff(businessId: string | undefined) {
         const unsubscribe = onSnapshot(q, (snapshot) => {
             clearTimeout(failSafe);
             const staffData: StaffMember[] = [];
-            snapshot.forEach((doc) => {
-                staffData.push({ id: doc.id, ...doc.data() } as StaffMember);
+            snapshot.forEach((docSnap) => {
+                const data = docSnap.data();
+                // Handle legacy docs where role was a string, and skillLevel was missing
+                const roles = data.roles || (data.role ? [data.role] : []);
+                const skillLevel = data.skillLevel || 'standard';
+
+                staffData.push({
+                    ...data,
+                    id: docSnap.id,
+                    roles,
+                    skillLevel
+                } as StaffMember);
             });
             setStaff(staffData);
             setLoading(false);
@@ -49,13 +61,14 @@ export function useStaff(businessId: string | undefined) {
         };
     }, [businessId]);
 
-    const addStaffMember = async (name: string, phone: string, role: string) => {
+    const addStaffMember = async (name: string, phone: string, roles: string[], skillLevel: SkillLevel) => {
         if (!businessId) throw new Error("No business ID");
         return await addDoc(collection(db, 'staff'), {
             businessId,
             name,
             phone,
-            role,
+            roles,
+            skillLevel,
             createdAt: new Date()
         });
     };

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, Users, MessageSquareText, Settings, LogOut, Bell, CheckCircle2, ShieldAlert, Save, Zap, Crown } from 'lucide-react';
-import { NotificationsTray } from './Notifications';
+import { NotificationsTray, mockNotifications } from './Notifications';
 import UpgradeModal from './UpgradeModal';
 import { useAuth } from '../context/AuthContext';
 import StaffView from './views/StaffView';
@@ -18,6 +18,13 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     const [activeTab, setActiveTab] = useState('roster');
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
+    const [notifications, setNotifications] = useState(mockNotifications);
+
+    const unreadCount = notifications.filter(n => !n.read).length;
+
+    const handleMarkAllRead = () => {
+        setNotifications(notifications.map(n => ({ ...n, read: true })));
+    };
 
     const tabs = [
         { id: 'roster', label: 'סידור עבודה', icon: Calendar },
@@ -90,10 +97,15 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                             onClick={() => setIsNotificationsOpen(true)}
                         >
                             <Bell className="w-6 h-6" />
-                            <span className="absolute top-1 right-2 w-2 h-2 bg-brand-gold rounded-full"></span>
+                            {unreadCount > 0 && <span className="absolute top-1 right-2 w-2 h-2 bg-brand-gold rounded-full"></span>}
                         </button>
                     </div>
-                    <NotificationsTray isOpen={isNotificationsOpen} onClose={() => setIsNotificationsOpen(false)} />
+                    <NotificationsTray
+                        isOpen={isNotificationsOpen}
+                        onClose={() => setIsNotificationsOpen(false)}
+                        notifications={notifications}
+                        onMarkAllRead={handleMarkAllRead}
+                    />
                 </header>
 
                 {/* Desktop Header */}
@@ -107,7 +119,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                             onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
                         >
                             <Bell className="w-6 h-6" />
-                            <span className="absolute top-1 right-2 w-2.5 h-2.5 bg-brand-gold rounded-full border-2 border-white"></span>
+                            {unreadCount > 0 && <span className="absolute top-1 right-2 w-2.5 h-2.5 bg-brand-gold rounded-full border-2 border-white"></span>}
                         </button>
                         <div className="w-10 h-10 rounded-full bg-brand-blue/10 border border-brand-blue/20 flex items-center justify-center text-brand-blue font-bold">
                             מ
@@ -115,7 +127,12 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                     </div>
                     {/* Desktop Notifications are positioned relative to the header */}
                     <div className="absolute top-16 right-8">
-                        <NotificationsTray isOpen={isNotificationsOpen} onClose={() => setIsNotificationsOpen(false)} />
+                        <NotificationsTray
+                            isOpen={isNotificationsOpen}
+                            onClose={() => setIsNotificationsOpen(false)}
+                            notifications={notifications}
+                            onMarkAllRead={handleMarkAllRead}
+                        />
                     </div>
                 </header>
 

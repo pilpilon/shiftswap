@@ -1,8 +1,7 @@
-import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, X, CheckCircle2, AlertCircle } from 'lucide-react';
 
-interface Notification {
+export interface Notification {
     id: string;
     title: string;
     message: string;
@@ -11,7 +10,7 @@ interface Notification {
     read: boolean;
 }
 
-const mockNotifications: Notification[] = [
+export const mockNotifications: Notification[] = [
     {
         id: '1',
         title: 'משמרת אוישה בהצלחה',
@@ -30,14 +29,18 @@ const mockNotifications: Notification[] = [
     }
 ];
 
-export function NotificationsTray({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
-    const [notifications, setNotifications] = useState(mockNotifications);
-
+export function NotificationsTray({
+    isOpen,
+    onClose,
+    notifications,
+    onMarkAllRead
+}: {
+    isOpen: boolean,
+    onClose: () => void,
+    notifications: Notification[],
+    onMarkAllRead: () => void
+}) {
     const unreadCount = notifications.filter(n => !n.read).length;
-
-    const markAllRead = () => {
-        setNotifications(notifications.map(n => ({ ...n, read: true })));
-    };
 
     return (
         <AnimatePresence>
@@ -67,7 +70,7 @@ export function NotificationsTray({ isOpen, onClose }: { isOpen: boolean, onClos
                                 )}
                             </div>
                             <div className="flex items-center gap-3">
-                                <button onClick={markAllRead} className="text-xs text-brand-blue hover:text-brand-blue/80 font-medium transition-colors">
+                                <button onClick={onMarkAllRead} className="text-xs text-brand-blue hover:text-brand-blue/80 font-medium transition-colors">
                                     סמן הכל כנקרא
                                 </button>
                                 <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
