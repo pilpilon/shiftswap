@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { useAuth } from '../../../src/context/AuthContext';
 import { useShifts, type Shift, type RoleRequirement, type SkillLevel, SKILL_LEVEL_LABELS } from '../../../src/hooks/useShifts';
-import { Calendar, Plus, CheckCircle2, Loader2, Trash2, ChevronRight, ChevronLeft, Edit2 } from 'lucide-react';
+import { useStaff } from '../../../src/hooks/useStaff';
+import { useSettings } from '../../../src/hooks/useSettings';
+import { runAutoAssign, WEEKDAY_LABELS_HE, isDeadlinePassed } from '../../../src/hooks/useAutoAssign';
+import {
+    Calendar, Plus, CheckCircle2, Loader2, Trash2,
+    ChevronRight, ChevronLeft, Edit2, Wand2, Settings2, AlertCircle,
+} from 'lucide-react';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -14,13 +20,20 @@ const getStartOfWeek = (date: Date) => {
     return new Date(d.setDate(diff));
 };
 
-// Predefined role suggestions (user can type their own)
+// Predefined role suggestions
 const ROLE_SUGGESTIONS = ['מלצר', 'טבח', 'מארחת', 'אחמש', 'בר', 'קופאי', 'מנהל משמרת'];
 
 const SKILL_COLORS: Record<SkillLevel, string> = {
-    star: 'bg-yellow-100 text-yellow-700 border-yellow-300',
-    standard: 'bg-blue-100 text-blue-700 border-blue-300',
+    star: 'bg-yellow-50 text-yellow-700 border-yellow-300',
+    standard: 'bg-blue-50 text-blue-700 border-blue-300',
     junior: 'bg-slate-100 text-slate-600 border-slate-300',
+};
+
+// Short label for badges displayed inside shift cards
+const SKILL_SHORT: Record<SkillLevel, string> = {
+    star: 'כוכב',
+    standard: 'סטנדרטי',
+    junior: 'מתחיל',
 };
 
 // Empty role row factory
@@ -32,10 +45,15 @@ const newRow = (): RoleRequirement => ({ role: '', count: 1, skillLevel: 'standa
 export default function RosterView() {
     const { user } = useAuth();
     const { shifts, loading, error, addShift, removeShift, updateShift } = useShifts(user?.businessId);
+    const { staff } = useStaff(user?.businessId);
+    const { settings, updateSettings } = useSettings();
 
     const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => getStartOfWeek(new Date()));
     const [addingDate, setAddingDate] = useState<string | null>(null);
     const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
+    const [isAssigning, setIsAssigning] = useState(false);
+    const [assignMsg, setAssignMsg] = useState<string | null>(null);
+    const [showDeadlinePanel, setShowDeadlinePanel] = useState(false);
 
     // Form state
     const [newDate, setNewDate] = useState('');
@@ -57,7 +75,6 @@ export default function RosterView() {
         setNewTitle(shift.title);
         setRoleRows(shift.roleRequirements && shift.roleRequirements.length > 0 ? shift.roleRequirements : [newRow()]);
         setAddingDate(shift.date);
-        // Scroll to the day
         document.getElementById(`day-${shift.date}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
@@ -73,7 +90,6 @@ export default function RosterView() {
 
     const handleAdd = async (e: React.FormEvent) => {
         e.preventDefault();
-        // Validate: all rows must have a role name
         for (const row of roleRows) {
             if (!row.role.trim()) {
                 alert('יש למלא שם תפקיד בכל שורה');
@@ -83,11 +99,7 @@ export default function RosterView() {
         try {
             if (editingShiftId) {
                 const totalRequired = roleRows.reduce((sum, r) => sum + r.count, 0);
-                await updateShift(editingShiftId, {
-                    title: newTitle,
-                    roleRequirements: roleRows,
-                    totalRequired
-                });
+                await updateShift(editingShiftId, { title: newTitle, roleRequirements: roleRows, totalRequired });
             } else {
                 await addShift(newDate, newTitle, roleRows);
             }
@@ -96,6 +108,28 @@ export default function RosterView() {
         } catch (err) {
             console.error('Failed to save shift', err);
             alert('שגיאה בשמירת משמרת');
+        }
+    };
+
+    // ── Auto-assign ───────────────────────────────────────────────────────────
+    const handleAutoAssign = async () => {
+        if (shifts.length === 0 || staff.length === 0) {
+            setAssignMsg('אין משמרות או עובדים לשיבוץ');
+            setTimeout(() => setAssignMsg(null), 3000);
+            return;
+        }
+        setIsAssigning(true);
+        setAssignMsg(null);
+        try {
+            const results = await runAutoAssign(shifts, staff);
+            const filled = results.filter(r => r.filledCount > 0).length;
+            setAssignMsg(`✅ שיבוץ הושלם — ${filled} משמרות קיבלו כיסוי`);
+        } catch (err) {
+            console.error('Auto-assign error', err);
+            setAssignMsg('❌ שגיאה בשיבוץ אוטומטי');
+        } finally {
+            setIsAssigning(false);
+            setTimeout(() => setAssignMsg(null), 5000);
         }
     };
 
@@ -139,49 +173,136 @@ export default function RosterView() {
     });
 
     const isCurrentWeek = getStartOfWeek(new Date()).getTime() === currentWeekStart.getTime();
+    const deadline = settings.submissionDeadlineDay ?? -1;
+    const deadlinePassed = isDeadlinePassed(deadline);
 
     // ── Render ────────────────────────────────────────────────────────────────
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                    <Calendar className="w-6 h-6 text-brand-blue" />
-                    יומן שבועי
-                </h2>
-
-                {/* Week navigator – dir=rtl so the visual order matches Hebrew reading direction */}
-                <div className="flex items-center gap-2 bg-white rounded-xl shadow-sm border border-slate-200 p-1" dir="rtl">
-                    {/* In RTL, ChevronRight points left → "previous" */}
+        <div className="space-y-4" dir="rtl">
+            {/* ── Header ───────────────────────────────────────────────────── */}
+            <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <Calendar className="w-6 h-6 text-brand-blue" />
+                        יומן שבועי
+                    </h2>
+                    {/* Deadline settings toggle */}
                     <button
-                        onClick={prevWeek}
-                        className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"
-                        title="שבוע קודם"
+                        onClick={() => setShowDeadlinePanel(v => !v)}
+                        className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-brand-blue hover:bg-brand-blue/5 px-3 py-1.5 rounded-lg transition-colors border border-slate-200"
                     >
-                        <ChevronRight className="w-5 h-5" />
-                    </button>
-                    <button
-                        onClick={jumpToToday}
-                        className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${isCurrentWeek
-                            ? 'bg-brand-blue/10 text-brand-blue'
-                            : 'hover:bg-slate-100 text-slate-700'
-                            }`}
-                    >
-                        השבוע
-                    </button>
-                    {/* ChevronLeft points right → "next" */}
-                    <button
-                        onClick={nextWeek}
-                        className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"
-                        title="שבוע הבא"
-                    >
-                        <ChevronLeft className="w-5 h-5" />
+                        <Settings2 className="w-3.5 h-3.5" />
+                        יום הגשה
                     </button>
                 </div>
+
+                {/* ── Deadline panel ──────────────────────────────────────── */}
+                {showDeadlinePanel && (
+                    <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 animate-in fade-in slide-in-from-top-2">
+                        <p className="text-sm font-semibold text-slate-700 mb-2">
+                            יום בשבוע לקבלת זמינות מהעובדים
+                        </p>
+                        <p className="text-xs text-slate-500 mb-3">
+                            המערכת תסמן את המשמרות כ"ממתין" או "מאויש" לאחר מועד זה.
+                            ניתן לבצע שיבוץ אוטומטי בכל עת.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={() => updateSettings({ submissionDeadlineDay: -1 })}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${deadline === -1
+                                        ? 'bg-brand-blue text-white border-brand-blue'
+                                        : 'bg-white text-slate-600 border-slate-300 hover:border-brand-blue'
+                                    }`}
+                            >
+                                ללא הגדרה
+                            </button>
+                            {([0, 1, 2, 3, 4, 5, 6] as const).map(day => (
+                                <button
+                                    key={day}
+                                    onClick={() => updateSettings({ submissionDeadlineDay: day })}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${deadline === day
+                                            ? 'bg-brand-blue text-white border-brand-blue'
+                                            : 'bg-white text-slate-600 border-slate-300 hover:border-brand-blue'
+                                        }`}
+                                >
+                                    יום {WEEKDAY_LABELS_HE[day]}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* ── Deadline status banner ───────────────────────────────── */}
+                {deadline >= 0 && deadlinePassed && (
+                    <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-sm text-amber-800">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>
+                            עבר יום {WEEKDAY_LABELS_HE[deadline]} — מועד הגשת הזמינות הסתיים.{' '}
+                            <button
+                                onClick={handleAutoAssign}
+                                disabled={isAssigning}
+                                className="font-bold underline hover:no-underline disabled:opacity-50"
+                            >
+                                {isAssigning ? 'מבצע שיבוץ...' : 'בצע שיבוץ אוטומטי'}
+                            </button>
+                        </span>
+                    </div>
+                )}
+
+                {/* ── Auto-assign button + message ─────────────────────────── */}
+                <div className="flex items-center gap-3">
+                    {/* Week navigator */}
+                    <div className="flex items-center gap-1 bg-white rounded-xl shadow-sm border border-slate-200 p-1">
+                        <button
+                            onClick={prevWeek}
+                            className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"
+                            title="שבוע קודם"
+                        >
+                            <ChevronRight className="w-5 h-5" />
+                        </button>
+                        <button
+                            onClick={jumpToToday}
+                            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${isCurrentWeek
+                                    ? 'bg-brand-blue/10 text-brand-blue'
+                                    : 'hover:bg-slate-100 text-slate-700'
+                                }`}
+                        >
+                            השבוע
+                        </button>
+                        <button
+                            onClick={nextWeek}
+                            className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"
+                            title="שבוע הבא"
+                        >
+                            <ChevronLeft className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    {/* Auto-assign button */}
+                    <button
+                        onClick={handleAutoAssign}
+                        disabled={isAssigning}
+                        className="flex items-center gap-1.5 bg-brand-blue hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm transition-all"
+                    >
+                        {isAssigning
+                            ? <Loader2 className="w-4 h-4 animate-spin" />
+                            : <Wand2 className="w-4 h-4" />
+                        }
+                        שיבוץ אוטומטי
+                    </button>
+                </div>
+
+                {/* Feedback message */}
+                {assignMsg && (
+                    <div className="text-sm text-slate-700 bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm">
+                        {assignMsg}
+                    </div>
+                )}
             </div>
 
             {error && <div className="p-4 bg-red-50 text-red-600 rounded-xl border border-red-200">{error}</div>}
 
+            {/* ── Week grid ──────────────────────────────────────────────────── */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                 <div className="divide-y divide-slate-100">
                     {loading ? (
@@ -198,17 +319,15 @@ export default function RosterView() {
                                 <div
                                     key={dateString}
                                     id={`day-${dateString}`}
-                                    className={`p-4 md:p-6 transition-colors ${isToday ? 'bg-blue-50/30' : 'hover:bg-slate-50/50'}`}
+                                    className={`p-4 transition-colors ${isToday ? 'bg-blue-50/30' : 'hover:bg-slate-50/50'}`}
                                 >
                                     {/* Day header */}
-                                    <div className="flex justify-between items-center mb-4">
+                                    <div className="flex justify-between items-center mb-3">
                                         <h3 className={`font-bold flex items-center gap-2 ${isToday ? 'text-brand-blue' : 'text-slate-900'}`}>
-                                            <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-2">
-                                                <span>{dateObj.toLocaleDateString('he-IL', { weekday: 'long' })}</span>
-                                                <span className="text-sm font-normal text-slate-500">
-                                                    {dateObj.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' })}
-                                                </span>
-                                            </div>
+                                            <span>{dateObj.toLocaleDateString('he-IL', { weekday: 'long' })}</span>
+                                            <span className="text-sm font-normal text-slate-400">
+                                                {dateObj.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' })}
+                                            </span>
                                         </h3>
                                         {addingDate !== dateString && (
                                             <button
@@ -221,21 +340,22 @@ export default function RosterView() {
                                         )}
                                     </div>
 
-                                    {/* ── Add-shift form ─────────────────────────────────── */}
+                                    {/* ── Add / Edit form ──────────────────────────────── */}
                                     {addingDate === dateString && (
                                         <form
                                             onSubmit={handleAdd}
-                                            className="bg-slate-50 p-4 md:p-5 rounded-xl shadow-inner border border-brand-blue/20 mb-4 animate-in fade-in slide-in-from-top-2"
+                                            className="bg-slate-50 p-4 rounded-xl shadow-inner border border-brand-blue/20 mb-4 animate-in fade-in slide-in-from-top-2"
+                                            dir="rtl"
                                         >
                                             <h4 className="font-bold text-slate-700 mb-3 text-sm">
                                                 {editingShiftId ? 'עריכת משמרת קיימת' : 'הוספת משמרת חדשה'}
                                             </h4>
 
-                                            {/* Shift type selector */}
+                                            {/* Shift type */}
                                             <select
                                                 value={newTitle}
                                                 onChange={e => setNewTitle(e.target.value)}
-                                                className="w-full border border-slate-200 rounded-xl px-4 py-2 focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm mb-4 bg-white"
+                                                className="w-full border border-slate-200 rounded-xl px-4 py-2 focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm mb-4 bg-white text-right"
                                             >
                                                 <option value="בוקר (08:00 - 16:00)">בוקר (08:00 - 16:00)</option>
                                                 <option value="ערב (16:00 - 24:00)">ערב (16:00 - 24:00)</option>
@@ -246,21 +366,21 @@ export default function RosterView() {
                                             {/* Role requirements table */}
                                             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mb-3">
                                                 {/* Table header */}
-                                                <div className="grid grid-cols-[1fr_60px_130px_36px] gap-2 px-3 py-2 bg-slate-100 text-xs font-semibold text-slate-500">
+                                                <div className="grid grid-cols-[auto_52px_110px_32px] gap-2 px-3 py-2 bg-slate-100 text-xs font-semibold text-slate-500">
                                                     <span>תפקיד</span>
                                                     <span className="text-center">כמות</span>
                                                     <span className="text-center">רמה</span>
                                                     <span />
                                                 </div>
 
-                                                {/* Role rows */}
+                                                {/* Rows */}
                                                 <div className="divide-y divide-slate-100">
                                                     {roleRows.map((row, idx) => (
                                                         <div
                                                             key={idx}
-                                                            className="grid grid-cols-[1fr_60px_130px_36px] gap-2 px-3 py-2 items-center"
+                                                            className="grid grid-cols-[auto_52px_110px_32px] gap-2 px-3 py-2 items-center"
                                                         >
-                                                            {/* Role name (with datalist suggestions) */}
+                                                            {/* Role name */}
                                                             <div>
                                                                 <input
                                                                     list="role-suggestions"
@@ -268,7 +388,7 @@ export default function RosterView() {
                                                                     value={row.role}
                                                                     onChange={e => updateRow(idx, { role: e.target.value })}
                                                                     placeholder="למשל: מלצר"
-                                                                    className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-brand-blue focus:outline-none"
+                                                                    className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-brand-blue focus:outline-none text-right"
                                                                 />
                                                                 <datalist id="role-suggestions">
                                                                     {ROLE_SUGGESTIONS.map(r => (
@@ -285,7 +405,7 @@ export default function RosterView() {
                                                                 max={50}
                                                                 value={row.count}
                                                                 onChange={e => updateRow(idx, { count: Number(e.target.value) })}
-                                                                className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center focus:ring-2 focus:ring-brand-blue focus:outline-none"
+                                                                className="w-full border border-slate-200 rounded-lg px-1 py-1.5 text-sm text-center focus:ring-2 focus:ring-brand-blue focus:outline-none"
                                                             />
 
                                                             {/* Skill level */}
@@ -299,7 +419,7 @@ export default function RosterView() {
                                                                 ))}
                                                             </select>
 
-                                                            {/* Remove row button */}
+                                                            {/* Remove row */}
                                                             <button
                                                                 type="button"
                                                                 onClick={() => removeRow(idx)}
@@ -323,7 +443,7 @@ export default function RosterView() {
                                                 </button>
                                             </div>
 
-                                            {/* Summary: total workers */}
+                                            {/* Total workers */}
                                             <p className="text-xs text-slate-500 mb-3">
                                                 סה&quot;כ:{' '}
                                                 <span className="font-bold text-slate-700">
@@ -333,7 +453,13 @@ export default function RosterView() {
                                             </p>
 
                                             {/* Actions */}
-                                            <div className="flex justify-end gap-2 text-sm">
+                                            <div className="flex justify-start gap-2 text-sm">
+                                                <button
+                                                    type="submit"
+                                                    className="bg-brand-blue hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-xl transition-all shadow-sm"
+                                                >
+                                                    {editingShiftId ? 'שמור שינויים' : 'שמור משמרת'}
+                                                </button>
                                                 <button
                                                     type="button"
                                                     onClick={() => { setAddingDate(null); setEditingShiftId(null); }}
@@ -341,20 +467,14 @@ export default function RosterView() {
                                                 >
                                                     ביטול
                                                 </button>
-                                                <button
-                                                    type="submit"
-                                                    className="bg-brand-blue hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-xl transition-all shadow-sm"
-                                                >
-                                                    {editingShiftId ? 'שמור שינויים' : 'שמור משמרת'}
-                                                </button>
                                             </div>
                                         </form>
                                     )}
 
-                                    {/* ── Existing shifts display ────────────────────────── */}
+                                    {/* ── Shift cards ──────────────────────────────────── */}
                                     {dayShifts.length > 0 ? (
                                         <div className="grid gap-3 md:grid-cols-2">
-                                            {dayShifts.map((shift) => (
+                                            {dayShifts.map(shift => (
                                                 <ShiftCard
                                                     key={shift.id}
                                                     shift={shift}
@@ -374,7 +494,7 @@ export default function RosterView() {
                                     ) : (
                                         !addingDate || addingDate !== dateString ? (
                                             <div className="text-slate-400 text-sm py-2 px-2 flex items-center gap-2 bg-slate-50/50 rounded-lg border border-slate-100 border-dashed">
-                                                <span className="block w-1.5 h-1.5 rounded-full bg-slate-300" />
+                                                <span className="block w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0" />
                                                 אין משמרות שובצו ליום זה
                                             </div>
                                         ) : null
@@ -390,27 +510,30 @@ export default function RosterView() {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// ShiftCard – shows title + role/level breakdown
+// ShiftCard — fixed RTL layout, no text truncation
 // ────────────────────────────────────────────────────────────────────────────
 function ShiftCard({ shift, onRemove, onEdit }: { shift: Shift; onRemove: () => void; onEdit: () => void }) {
     const roles = shift.roleRequirements ?? [];
     const isFilled = shift.filledCount >= shift.totalRequired;
 
     return (
-        <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm">
-            {/* Header row */}
-            <div className="flex justify-between items-start gap-2 mb-2">
-                <div>
-                    <div className="font-semibold text-slate-800 text-sm">{shift.title}</div>
+        <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm" dir="rtl">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-2 mb-2">
+                {/* Title + coverage */}
+                <div className="min-w-0 flex-1">
+                    <div className="font-semibold text-slate-800 text-sm leading-snug">{shift.title}</div>
                     <div className="text-xs text-slate-500 mt-0.5">
                         {shift.filledCount} מתוך {shift.totalRequired} כיסויים
                     </div>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
+
+                {/* Status + actions */}
+                <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
                     {isFilled ? (
-                        <CheckCircle2 className="w-5 h-5 text-green-500" />
+                        <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
                     ) : (
-                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                        <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full whitespace-nowrap">
                             ממתין לאיוש
                         </span>
                     )}
@@ -431,16 +554,17 @@ function ShiftCard({ shift, onRemove, onEdit }: { shift: Shift; onRemove: () => 
                 </div>
             </div>
 
-            {/* Role requirements breakdown */}
+            {/* Role badges — each on its own line if needed */}
             {roles.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-2">
                     {roles.map((r, i) => (
                         <span
                             key={i}
-                            className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border ${SKILL_COLORS[r.skillLevel]}`}
+                            className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full border ${SKILL_COLORS[r.skillLevel]}`}
                         >
-                            {r.count}× {r.role}
-                            <span className="opacity-70">({SKILL_LEVEL_LABELS[r.skillLevel].split(' ')[1] ?? SKILL_LEVEL_LABELS[r.skillLevel]})</span>
+                            <span className="font-bold">{r.count}×</span>
+                            <span>{r.role}</span>
+                            <span className="opacity-60">({SKILL_SHORT[r.skillLevel]})</span>
                         </span>
                     ))}
                 </div>

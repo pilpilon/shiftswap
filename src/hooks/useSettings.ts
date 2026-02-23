@@ -10,6 +10,8 @@ export interface AppSettings {
     botTone: string;
     warningHours: number;
     customRules: string;
+    // Day of week for staff submission deadline: 0=Sun, 1=Mon...6=Sat, -1=disabled
+    submissionDeadlineDay: number;
 }
 
 const defaultSettings: AppSettings = {
@@ -18,7 +20,8 @@ const defaultSettings: AppSettings = {
     enableTaxi: false,
     botTone: 'צעיר וקליל (אחי, מה קורה?)',
     warningHours: 24,
-    customRules: ''
+    customRules: '',
+    submissionDeadlineDay: -1, // disabled by default
 };
 
 export function useSettings() {
