@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../../../src/context/AuthContext';
 import { useShifts, type Shift, type RoleRequirement, type SkillLevel, SKILL_LEVEL_LABELS } from '../../../src/hooks/useShifts';
-import { Calendar, Plus, CheckCircle2, Loader2, Trash2, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Calendar, Plus, CheckCircle2, Loader2, Trash2, ChevronRight, ChevronLeft, Edit2 } from 'lucide-react';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -31,10 +31,11 @@ const newRow = (): RoleRequirement => ({ role: '', count: 1, skillLevel: 'standa
 // ────────────────────────────────────────────────────────────────────────────
 export default function RosterView() {
     const { user } = useAuth();
-    const { shifts, loading, error, addShift, removeShift } = useShifts(user?.businessId);
+    const { shifts, loading, error, addShift, removeShift, updateShift } = useShifts(user?.businessId);
 
     const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => getStartOfWeek(new Date()));
     const [addingDate, setAddingDate] = useState<string | null>(null);
+    const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
 
     // Form state
     const [newDate, setNewDate] = useState('');
@@ -43,10 +44,21 @@ export default function RosterView() {
 
     // ── Form helpers ──────────────────────────────────────────────────────────
     const openAddShiftForDate = (dateStr: string) => {
+        setEditingShiftId(null);
         setNewDate(dateStr);
         setNewTitle('בוקר (08:00 - 16:00)');
         setRoleRows([newRow()]);
         setAddingDate(dateStr);
+    };
+
+    const handleEditClick = (shift: Shift) => {
+        setEditingShiftId(shift.id);
+        setNewDate(shift.date);
+        setNewTitle(shift.title);
+        setRoleRows(shift.roleRequirements && shift.roleRequirements.length > 0 ? shift.roleRequirements : [newRow()]);
+        setAddingDate(shift.date);
+        // Scroll to the day
+        document.getElementById(`day-${shift.date}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
     const updateRow = (index: number, patch: Partial<RoleRequirement>) => {
@@ -69,11 +81,21 @@ export default function RosterView() {
             }
         }
         try {
-            await addShift(newDate, newTitle, roleRows);
+            if (editingShiftId) {
+                const totalRequired = roleRows.reduce((sum, r) => sum + r.count, 0);
+                await updateShift(editingShiftId, {
+                    title: newTitle,
+                    roleRequirements: roleRows,
+                    totalRequired
+                });
+            } else {
+                await addShift(newDate, newTitle, roleRows);
+            }
             setAddingDate(null);
+            setEditingShiftId(null);
         } catch (err) {
-            console.error('Failed to add shift', err);
-            alert('שגיאה בהוספת משמרת');
+            console.error('Failed to save shift', err);
+            alert('שגיאה בשמירת משמרת');
         }
     };
 
@@ -83,6 +105,7 @@ export default function RosterView() {
         next.setDate(next.getDate() + 7);
         setCurrentWeekStart(next);
         setAddingDate(null);
+        setEditingShiftId(null);
     };
 
     const prevWeek = () => {
@@ -90,11 +113,13 @@ export default function RosterView() {
         prev.setDate(prev.getDate() - 7);
         setCurrentWeekStart(prev);
         setAddingDate(null);
+        setEditingShiftId(null);
     };
 
     const jumpToToday = () => {
         setCurrentWeekStart(getStartOfWeek(new Date()));
         setAddingDate(null);
+        setEditingShiftId(null);
     };
 
     // ── Derived data ──────────────────────────────────────────────────────────
@@ -202,7 +227,9 @@ export default function RosterView() {
                                             onSubmit={handleAdd}
                                             className="bg-slate-50 p-4 md:p-5 rounded-xl shadow-inner border border-brand-blue/20 mb-4 animate-in fade-in slide-in-from-top-2"
                                         >
-                                            <h4 className="font-bold text-slate-700 mb-3 text-sm">הוספת משמרת חדשה</h4>
+                                            <h4 className="font-bold text-slate-700 mb-3 text-sm">
+                                                {editingShiftId ? 'עריכת משמרת קיימת' : 'הוספת משמרת חדשה'}
+                                            </h4>
 
                                             {/* Shift type selector */}
                                             <select
@@ -309,7 +336,7 @@ export default function RosterView() {
                                             <div className="flex justify-end gap-2 text-sm">
                                                 <button
                                                     type="button"
-                                                    onClick={() => setAddingDate(null)}
+                                                    onClick={() => { setAddingDate(null); setEditingShiftId(null); }}
                                                     className="px-4 py-2 text-slate-600 hover:bg-slate-200 font-medium rounded-xl transition-colors"
                                                 >
                                                     ביטול
@@ -318,7 +345,7 @@ export default function RosterView() {
                                                     type="submit"
                                                     className="bg-brand-blue hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-xl transition-all shadow-sm"
                                                 >
-                                                    שמור משמרת
+                                                    {editingShiftId ? 'שמור שינויים' : 'שמור משמרת'}
                                                 </button>
                                             </div>
                                         </form>
@@ -334,8 +361,13 @@ export default function RosterView() {
                                                     onRemove={() => {
                                                         if (window.confirm('האם אתה בטוח שברצונך למחוק את המשמרת?')) {
                                                             removeShift(shift.id);
+                                                            if (editingShiftId === shift.id) {
+                                                                setAddingDate(null);
+                                                                setEditingShiftId(null);
+                                                            }
                                                         }
                                                     }}
+                                                    onEdit={() => handleEditClick(shift)}
                                                 />
                                             ))}
                                         </div>
@@ -360,7 +392,7 @@ export default function RosterView() {
 // ────────────────────────────────────────────────────────────────────────────
 // ShiftCard – shows title + role/level breakdown
 // ────────────────────────────────────────────────────────────────────────────
-function ShiftCard({ shift, onRemove }: { shift: Shift; onRemove: () => void }) {
+function ShiftCard({ shift, onRemove, onEdit }: { shift: Shift; onRemove: () => void; onEdit: () => void }) {
     const roles = shift.roleRequirements ?? [];
     const isFilled = shift.filledCount >= shift.totalRequired;
 
@@ -383,8 +415,15 @@ function ShiftCard({ shift, onRemove }: { shift: Shift; onRemove: () => void }) 
                         </span>
                     )}
                     <button
+                        onClick={onEdit}
+                        className="text-slate-400 hover:text-brand-blue transition-colors p-1.5 rounded-full hover:bg-blue-50"
+                        title="ערוך משמרת"
+                    >
+                        <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
                         onClick={onRemove}
-                        className="text-slate-300 hover:text-red-500 transition-colors p-1.5 rounded-full hover:bg-red-50"
+                        className="text-slate-400 hover:text-red-500 transition-colors p-1.5 rounded-full hover:bg-red-50"
                         title="מחק משמרת"
                     >
                         <Trash2 className="w-4 h-4" />
