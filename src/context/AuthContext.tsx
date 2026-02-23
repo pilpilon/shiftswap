@@ -1,10 +1,11 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import {
-    signInWithEmailAndPassword,
+signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     signOut,
-    onAuthStateChanged
+    onAuthStateChanged,
+    signInWithPopup,
+    GoogleAuthProvider
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
@@ -21,6 +22,7 @@ interface AuthContextType {
     user: User | null;
     loading: boolean;
     login: (email: string, pass: string) => Promise<void>;
+    loginWithGoogle: () => Promise<void>;
     register: (email: string, pass: string, name: string, businessName: string) => Promise<void>;
     logout: () => Promise<void>;
     isAuthenticated: boolean;
@@ -92,11 +94,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await signOut(auth);
     };
 
+    const loginWithGoogle = async () => {
+        const provider = new GoogleAuthProvider();
+        const userCredential = await signInWithPopup(auth, provider);
+        const { uid, displayName, email } = userCredential.user;
+
+        // Check if user document exists
+        const userDocRef = doc(db, 'users', uid);
+        const docSnap = await getDoc(userDocRef);
+
+        if (!docSnap.exists()) {
+            // New Google user, create basic profile
+            await setDoc(userDocRef, {
+                name: displayName || email || 'Google User',
+                businessName: 'העסק שלי', // Default fallback
+                businessId: uid,
+                role: 'manager',
+                createdAt: new Date().toISOString()
+            });
+        }
+    };
+
     return (
         <AuthContext.Provider value={{
             user,
             loading,
             login,
+            loginWithGoogle,
             register,
             logout,
             isAuthenticated: !!user
