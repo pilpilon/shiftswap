@@ -18,8 +18,16 @@ export default function LandingPage() {
                         <span className="text-xl font-bold font-sans text-brand-blue">ShiftSwap<span className="text-brand-gold">.ai</span></span>
                     </div>
                     <button
+                        onClick={() => {
+                            document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        className="hidden md:block text-sm font-medium text-slate-600 hover:text-slate-900 px-4 py-2 rounded-full transition-colors"
+                    >
+                        מחירים
+                    </button>
+                    <button
                         onClick={() => navigate('/login')}
-                        className="text-sm font-medium text-brand-blue hover:text-brand-blue/80 px-4 py-2 rounded-full transition-colors"
+                        className="text-sm font-medium bg-brand-blue/10 text-brand-blue hover:bg-brand-blue/20 px-5 py-2.5 rounded-full transition-colors"
                     >
                         כניסת מנהלים
                     </button>
@@ -77,8 +85,13 @@ export default function LandingPage() {
                                     התחילו עכשיו חינם
                                     <ArrowLeft className="w-5 h-5" />
                                 </button>
-                                <button className="w-full sm:w-auto text-slate-600 hover:text-slate-900 px-8 py-4 rounded-full text-lg font-medium transition-colors">
-                                    צפו בסרטון הדגמה
+                                <button
+                                    onClick={() => {
+                                        document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
+                                    }}
+                                    className="w-full sm:w-auto text-slate-600 hover:text-slate-900 px-8 py-4 rounded-full text-lg font-medium transition-colors"
+                                >
+                                    צפו בחבילות המחירים
                                 </button>
                             </motion.div>
                         </div>
@@ -128,6 +141,65 @@ export default function LandingPage() {
                                     <p className="text-slate-600 leading-relaxed">{feature.desc}</p>
                                 </motion.div>
                             ))}
+                        </div>
+                    </div>
+                </section>
+
+                {/* Pricing Section */}
+                <section className="py-24 bg-slate-50 relative overflow-hidden" id="pricing">
+                    <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
+                    <div className="container mx-auto px-4">
+                        <div className="max-w-3xl mx-auto text-center mb-16">
+                            <h2 className="text-3xl lg:text-4xl font-extrabold text-slate-900 mb-4">תמחור פשוט ושקוף</h2>
+                            <p className="text-lg text-slate-600">שלם על מה שעובד. בלי התחייבות, בלי אותיות קטנות.</p>
+                        </div>
+
+                        <div className="max-w-lg mx-auto">
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                whileInView={{ opacity: 1, scale: 1 }}
+                                viewport={{ once: true }}
+                                className="bg-white rounded-3xl shadow-2xl shadow-slate-200/50 border-2 border-brand-blue relative overflow-hidden"
+                            >
+                                {/* Popular badge */}
+                                <div className="absolute top-0 inset-x-0 bg-brand-blue text-white text-center py-1.5 text-sm font-bold tracking-wide">
+                                    הכי משתלם
+                                </div>
+
+                                <div className="p-8 pt-12 text-center border-b border-slate-100">
+                                    <h3 className="text-2xl font-bold text-slate-900 mb-2">למיקום יחיד</h3>
+                                    <p className="text-slate-500 mb-6">למסעדות, חנויות ואולמות אירועים</p>
+                                    <div className="flex items-center justify-center gap-1">
+                                        <span className="text-5xl font-extrabold text-slate-900">$40</span>
+                                        <span className="text-slate-500 font-medium mt-2">/חודש</span>
+                                    </div>
+                                </div>
+
+                                <div className="p-8 bg-slate-50/50">
+                                    <ul className="space-y-4 mb-8">
+                                        {[
+                                            'ניהול של עד 100 עובדים',
+                                            'משא ומתן AI אוטומטי בוואטסאפ',
+                                            'התראות ווידוא הגעה',
+                                            'מערכת ניהול חכמה לדפדפן נייד ונייח',
+                                            'תמיכה בוואטסאפ 24/7'
+                                        ].map((feature, idx) => (
+                                            <li key={idx} className="flex items-center gap-3">
+                                                <div className="rounded-full bg-emerald-100 p-1 flex-shrink-0">
+                                                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                                                </div>
+                                                <span className="text-slate-700 font-medium">{feature}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                    <button
+                                        onClick={() => navigate('/login')}
+                                        className="w-full bg-brand-blue hover:bg-brand-blue/90 text-white py-4 rounded-xl font-bold text-lg shadow-lg shadow-brand-blue/25 transition-all active:scale-95"
+                                    >
+                                        התחל 14 ימי ניסיון חינם
+                                    </button>
+                                </div>
+                            </motion.div>
                         </div>
                     </div>
                 </section>
