@@ -4,9 +4,12 @@ import { GoogleGenAI } from '@google/genai';
 // The SDK automatically picks up the GEMINI_API_KEY environment variable.
 const ai = new GoogleGenAI({});
 
-import { getBusinessRules, getOpenShifts } from './firebase';
+import { getBusinessRules, getOpenShifts, saveNegotiationLog } from './firebase';
 
 export async function processIncomingMessage(businessId: string, remoteJid: string, incomingText: string): Promise<string> {
+
+    // Log the incoming message from the employee
+    await saveNegotiationLog(businessId, remoteJid, incomingText, 'employee');
 
     // Fetch context from Firestore (or mocks if disconnected)
     const rulesConfig = await getBusinessRules(businessId);
@@ -40,7 +43,12 @@ export async function processIncomingMessage(businessId: string, remoteJid: stri
             }
         });
 
-        return response.text || "סליחה, לא הבנתי. תוכל לחזור שנית?";
+        const botReply = response.text || "סליחה, לא הבנתי. תוכל לחזור שנית?";
+
+        // Log the outgoing AI response
+        await saveNegotiationLog(businessId, remoteJid, botReply, 'ai');
+
+        return botReply;
     } catch (error) {
         console.error("AI Generation Error: ", error);
         return "מצטער, חלה שגיאה במערכת כרגע.";

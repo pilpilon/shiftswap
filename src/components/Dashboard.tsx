@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar, Users, MessageSquareText, Settings, LogOut, Bell, Plus, CheckCircle2, UserPlus, MoreVertical, Search, Filter, ShieldAlert, Save, Zap, Crown } from 'lucide-react';
+import { Calendar, Users, MessageSquareText, Settings, LogOut, Bell, CheckCircle2, ShieldAlert, Save, Zap, Crown } from 'lucide-react';
 import { NotificationsTray } from './Notifications';
 import UpgradeModal from './UpgradeModal';
 import { useAuth } from '../context/AuthContext';
+import StaffView from './views/StaffView';
+import RosterView from './views/RosterView';
+import NegotiationsView from './views/NegotiationsView';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -170,202 +173,11 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
 // --- Mock Components for the Views --- //
 
-function RosterView() {
-    return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <h2 className="text-lg font-bold text-slate-800 md:hidden">סידור עבודה - השבוע</h2>
-                <div className="hidden md:flex gap-2">
-                    <button className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors">
-                        שבוע קודם
-                    </button>
-                    <button className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition-colors">
-                        שבוע הבא
-                    </button>
-                </div>
-                <button className="bg-brand-blue hover:bg-brand-blue/90 text-white p-3 md:px-4 md:py-2 rounded-full md:rounded-lg shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95">
-                    <Plus className="w-5 h-5" />
-                    <span className="hidden md:inline font-medium">הוספת משמרת</span>
-                </button>
-            </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                {/* Mock Roster List */}
-                <div className="divide-y divide-slate-100">
-                    {[
-                        { date: 'יום ראשון - 24/02', shifts: [{ time: 'בוקר (08:00 - 16:00)', filled: 3, total: 3 }, { time: 'ערב (16:00 - 24:00)', filled: 2, total: 4, urgent: true }] },
-                        { date: 'יום שני - 25/02', shifts: [{ time: 'בוקר (08:00 - 16:00)', filled: 3, total: 3 }, { time: 'ערב (16:00 - 24:00)', filled: 4, total: 4 }] },
-                        { date: 'יום שלישי - 26/02', shifts: [{ time: 'בוקר (08:00 - 16:00)', filled: 2, total: 3 }, { time: 'ערב (16:00 - 24:00)', filled: 0, total: 4 }] },
-                    ].map((day, i) => (
-                        <div key={i} className="p-4 md:p-6 hover:bg-slate-50/50 transition-colors">
-                            <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-                                <Calendar className="w-5 h-5 text-brand-blue" />
-                                {day.date}
-                            </h3>
-                            <div className="grid gap-3 md:grid-cols-2">
-                                {day.shifts.map((shift, j) => (
-                                    <div key={j} className={`p-4 rounded-xl border ${shift.urgent ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-white'} flex justify-between items-center`}>
-                                        <div>
-                                            <div className="font-medium text-slate-800">{shift.time}</div>
-                                            <div className="text-sm text-slate-500 mt-1">
-                                                {shift.filled} מתוך {shift.total} כיסויים
-                                            </div>
-                                        </div>
-                                        {shift.urgent ? (
-                                            <button className="text-xs font-bold text-red-600 bg-red-100 px-3 py-1.5 rounded-full hover:bg-red-200 transition-colors">
-                                                דרוש איוש!
-                                            </button>
-                                        ) : shift.filled === shift.total ? (
-                                            <CheckCircle2 className="w-6 h-6 text-green-500" />
-                                        ) : (
-                                            <button className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-full">
-                                                חסר איש צוות
-                                            </button>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </div>
-    );
-}
 
-function NegotiationsView() {
-    return (
-        <div className="h-full flex flex-col space-y-4">
-            <div className="bg-blue-50 border border-blue-100 text-brand-blue p-4 rounded-xl flex items-start gap-4">
-                <div className="bg-white p-2 rounded-full shrink-0 shadow-sm">
-                    <Zap className="w-5 h-5 text-brand-gold fill-brand-gold" />
-                </div>
-                <div>
-                    <h4 className="font-bold">2 משמרות בסכנה (משמרת ערב - יום ראשון)</h4>
-                    <p className="text-sm mt-1 opacity-90">הבוט כרגע מנהל משא ומתן עם 4 עובדים בוואטסאפ לפי חוקי "בונוס במקום חופש".</p>
-                </div>
-            </div>
 
-            <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
-                {/* Chat Logs */}
-                <div className="p-4 border-b border-slate-100 bg-slate-50 font-bold text-slate-700 flex justify-between items-center">
-                    <span>יוני (מלצר) - משא ומתן פעיל</span>
-                    <span className="flex items-center gap-1 text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full">
-                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> מחובר
-                    </span>
-                </div>
-                <div className="flex-1 p-6 space-y-6 overflow-y-auto bg-[url('https://ik.imagekit.io/yvxgv/whatsapp-bg.png')] bg-cover bg-opacity-10 bg-center">
-                    {/* Incoming */}
-                    <div className="flex justify-end">
-                        <div className="bg-white border border-slate-200 rounded-2xl rounded-tr-sm p-4 max-w-[85%] shadow-sm relative">
-                            <p className="text-slate-800">היי יוני, חסר לי מישהו להערב ב-16:00. אם אתה לוקח את זה, אתה מקבל את יום שישי בבוקר חופש. מתאים?</p>
-                            <span className="text-[10px] text-slate-400 absolute bottom-1 left-2">12:04</span>
-                        </div>
-                    </div>
-                    {/* Outgoing */}
-                    <div className="flex justify-start">
-                        <div className="bg-[#E7FFDB] border border-[#d4f5c5] rounded-2xl rounded-tl-sm p-4 max-w-[85%] shadow-sm relative">
-                            <p className="text-slate-800">אמממ אני יכול אבל בתנאי שאני חותך ב23:00 ולא סוגר.</p>
-                            <span className="text-[10px] text-slate-400 absolute bottom-1 right-2 w-max">12:15</span>
-                        </div>
-                    </div>
-                    {/* Incoming */}
-                    <div className="flex justify-end">
-                        <div className="bg-white border border-slate-200 rounded-2xl rounded-tr-sm p-4 max-w-[85%] shadow-sm relative">
-                            <p className="text-slate-800">סגור. אישרתי לך את המשמרת 16:00 עד 23:00 השקעתי בך עם שישי בוקר חופש. תודה גבר! נתראה.</p>
-                            <span className="text-[10px] text-slate-400 absolute bottom-1 left-2">12:16</span>
-                        </div>
-                    </div>
-                    {/* System event */}
-                    <div className="flex justify-center my-4">
-                        <span className="bg-slate-800/60 text-white text-xs px-3 py-1 rounded-full backdrop-blur-sm">המשמרת אומתה במערכת - 12:16</span>
-                    </div>
-                </div>
-                <div className="p-4 border-t border-slate-100 bg-white flex gap-2">
-                    <input type="text" disabled placeholder="הרובוט מנהל את השיחה הזו..." className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 cursor-not-allowed text-sm" />
-                    <button disabled className="bg-brand-blue/50 text-white px-4 py-2 rounded-xl cursor-not-allowed">
-                        <MessageSquareText className="w-5 h-5" />
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-}
 
-function StaffView() {
-    return (
-        <div className="space-y-6 h-full flex flex-col">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <h2 className="text-2xl font-bold text-slate-800 hidden md:block">צוות העובדים</h2>
-                <div className="flex flex-wrap w-full sm:w-auto gap-2">
-                    <div className="relative flex-1 sm:w-64 min-w-[200px]">
-                        <Search className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
-                        <input type="text" placeholder="חיפוש עובד..." className="w-full pl-4 pr-10 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-blue" />
-                    </div>
-                    <button className="p-2 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors">
-                        <Filter className="w-5 h-5" />
-                    </button>
-                    <button className="bg-brand-blue hover:bg-brand-blue/90 text-white p-2 sm:px-4 sm:py-2 rounded-xl shadow-md flex items-center justify-center gap-2 transition-all">
-                        <UserPlus className="w-5 h-5" />
-                        <span className="hidden sm:inline font-medium">הוספת עובד</span>
-                    </button>
-                </div>
-            </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex-1">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-right min-w-[600px]">
-                        <thead className="bg-slate-50 border-b border-slate-100 text-slate-600 font-medium">
-                            <tr>
-                                <th className="p-4 rounded-tr-2xl">שם העובד</th>
-                                <th className="p-4">תפקיד</th>
-                                <th className="p-4">סטטוס חיבור</th>
-                                <th className="p-4 hidden md:table-cell">משמרות החודש</th>
-                                <th className="p-4 rounded-tl-2xl text-center">פעולות</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 text-slate-800">
-                            {[
-                                { name: 'יוני (מלצר)', role: 'מלצר אחראי', status: 'מחובר לוואטסאפ', active: true, shifts: 12 },
-                                { name: 'שירן כהן', role: 'אחמ"ש', status: 'מחובר לוואטסאפ', active: true, shifts: 18 },
-                                { name: 'דניאל לוי', role: 'ברמן', status: 'לא מחובר', active: false, shifts: 5 },
-                                { name: 'נועה ברק', role: 'מארחת', status: 'מחובר לוואטסאפ', active: true, shifts: 8 },
-                            ].map((staff, i) => (
-                                <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="p-4 font-medium flex items-center gap-3">
-                                        <div className="w-10 h-10 shrink-0 rounded-full bg-brand-blue/10 text-brand-blue flex items-center justify-center font-bold">
-                                            {staff.name.charAt(0)}
-                                        </div>
-                                        {staff.name}
-                                    </td>
-                                    <td className="p-4">
-                                        <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-medium">
-                                            {staff.role}
-                                        </span>
-                                    </td>
-                                    <td className="p-4">
-                                        <div className="flex items-center gap-2">
-                                            <span className={`w-2 h-2 shrink-0 rounded-full ${staff.active ? 'bg-green-500' : 'bg-slate-300'}`}></span>
-                                            <span className="text-sm text-slate-600 whitespace-nowrap">{staff.status}</span>
-                                        </div>
-                                    </td>
-                                    <td className="p-4 hidden md:table-cell text-slate-600">
-                                        {staff.shifts} משמרות
-                                    </td>
-                                    <td className="p-4 text-center text-slate-400">
-                                        <div className="flex items-center justify-center w-full">
-                                            <button className="hover:text-brand-blue p-1 rounded-md hover:bg-slate-100 transition-colors"><MoreVertical className="w-5 h-5" /></button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    );
-}
 
 function SettingsView() {
     const { user } = useAuth();

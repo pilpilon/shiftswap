@@ -48,3 +48,18 @@ export async function getOpenShifts(businessId: string): Promise<any[]> {
     // Real implementation would query the active shifts collection
     return [];
 }
+
+export async function saveNegotiationLog(businessId: string, employeePhone: string, message: string, sender: 'ai' | 'employee' | 'system') {
+    if (!db) return;
+    try {
+        await db.collection('negotiation_logs').add({
+            businessId,
+            employeePhone,
+            message,
+            sender,
+            timestamp: new Date().toISOString()
+        });
+    } catch (err) {
+        console.error("Failed to save negotiation log:", err);
+    }
+}
