@@ -1,18 +1,37 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Store, Save, ChevronLeft } from 'lucide-react';
+import { Store, Save, ChevronLeft, Loader2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 interface OnboardingProps {
     onComplete: () => void;
 }
 
 export default function Onboarding({ onComplete }: OnboardingProps) {
+    const { user } = useAuth();
     const [step, setStep] = useState(1);
-    const [businessName, setBusinessName] = useState('');
+    const [businessName, setBusinessName] = useState(user?.businessName === 'העסק שלי' || user?.businessName === 'My Business' ? '' : (user?.businessName || ''));
+    const [saving, setSaving] = useState(false);
 
-    const handleNext = () => {
-        if (step < 2) setStep(step + 1);
-        else onComplete();
+    const handleNext = async () => {
+        if (step < 2) {
+            setStep(step + 1);
+        } else {
+            setSaving(true);
+            try {
+                if (user?.id) {
+                    await updateDoc(doc(db, 'users', user.id), {
+                        businessName: businessName
+                    });
+                }
+                onComplete();
+            } catch (err) {
+                console.error("Error saving business details:", err);
+                setSaving(false);
+            }
+        }
     };
 
     return (
@@ -86,11 +105,17 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                     <div className="mt-8">
                         <button
                             onClick={handleNext}
-                            disabled={step === 1 && !businessName.trim()}
+                            disabled={(step === 1 && !businessName.trim()) || saving}
                             className="w-full bg-brand-blue hover:bg-brand-blue/90 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-brand-blue/20 transition-all active:scale-95"
                         >
-                            {step === 1 ? 'המשך' : 'סיום ומעבר למערכת'}
-                            {step === 1 ? <ChevronLeft className="w-5 h-5" /> : <Save className="w-5 h-5" />}
+                            {saving ? (
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                            ) : (
+                                <>
+                                    {step === 1 ? 'המשך' : 'סיום ומעבר למערכת'}
+                                    {step === 1 ? <ChevronLeft className="w-5 h-5" /> : <Save className="w-5 h-5" />}
+                                </>
+                            )}
                         </button>
                     </div>
                 </div>
