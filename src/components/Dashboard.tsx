@@ -404,6 +404,21 @@ function SettingsView() {
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-2">מספר השעות לאזהרה במקרה של חוסר באיש צוות</label>
                                 <input type="number" defaultValue={24} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:bg-white transition-all" />
+                                <p className="text-xs text-slate-500 mt-2">מספר השעות לפני תחילת משמרת ריקה בהן הבוט יתחיל לפנות עצמאית לשאר הצוות.</p>
+                            </div>
+
+                            <div className="pt-2">
+                                <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center justify-between">
+                                    <span>חוקי משא ומתן מותאמים אישית (טקסט חופשי)</span>
+                                    <span className="text-xs bg-brand-gold/20 text-brand-gold px-2 py-0.5 rounded-full">AI Prompt</span>
+                                </label>
+                                <textarea
+                                    rows={4}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:bg-white transition-all resize-none"
+                                    placeholder="לדוגמה: אם עובד לוקח משמרת שנייה ברצף, תציע לחסום לו את השבת כדי שינוח. אל תציע בונוסים למי שאיחר החודש."
+                                    defaultValue="אם עובד לוקח כפולה, הבטח לו משמרת קלה ביום ראשון. אל תיתן מוניות אם המרחק קצר מ-3 קילומטרים."
+                                ></textarea>
+                                <p className="text-xs text-slate-500 mt-2">הנחיות ישירות למודל השפה שיקבעו את אסטרטגיית המשא ומתן של הבוט.</p>
                             </div>
                         </div>
                     </div>
