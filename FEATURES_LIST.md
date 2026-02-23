@@ -3,7 +3,9 @@
 ## Integrated Features
 - [x] Landing Page (Hebrew, RTL, Mobile-first) - Deep Blue & Gold aesthetic
 - [x] App Dashboard Shell (Sidebar + Mobile Bottom Nav)
-- [x] Shift Management Panel (Roster View with urgency indicators)
+- [x] Shift Management Panel (Roster View with role+skill-level requirements)
+- [x] Worker Skill Levels: ⭐ כוכב / ✓ סטנדרטי / ◎ מתחיל (non-offensive 3-tier system)
+- [x] Per-shift Role Requirements: multi-row table (role × count × skill level)
 - [x] WhatsApp Integration Mockup (Live AI negotiation chat UI)
 
 ## Core Features (Planned)

@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { useAuth } from '../../../src/context/AuthContext';
-import { useShifts, type Shift } from '../../../src/hooks/useShifts';
+import { useShifts, type Shift, type RoleRequirement, type SkillLevel, SKILL_LEVEL_LABELS } from '../../../src/hooks/useShifts';
 import { Calendar, Plus, CheckCircle2, Loader2, Trash2, ChevronRight, ChevronLeft } from 'lucide-react';
 
+// ────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ────────────────────────────────────────────────────────────────────────────
 const getStartOfWeek = (date: Date) => {
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
@@ -11,36 +14,70 @@ const getStartOfWeek = (date: Date) => {
     return new Date(d.setDate(diff));
 };
 
+// Predefined role suggestions (user can type their own)
+const ROLE_SUGGESTIONS = ['מלצר', 'טבח', 'מארחת', 'אחמש', 'בר', 'קופאי', 'מנהל משמרת'];
+
+const SKILL_COLORS: Record<SkillLevel, string> = {
+    star: 'bg-yellow-100 text-yellow-700 border-yellow-300',
+    standard: 'bg-blue-100 text-blue-700 border-blue-300',
+    junior: 'bg-slate-100 text-slate-600 border-slate-300',
+};
+
+// Empty role row factory
+const newRow = (): RoleRequirement => ({ role: '', count: 1, skillLevel: 'standard' });
+
+// ────────────────────────────────────────────────────────────────────────────
+// Component
+// ────────────────────────────────────────────────────────────────────────────
 export default function RosterView() {
     const { user } = useAuth();
     const { shifts, loading, error, addShift, removeShift } = useShifts(user?.businessId);
 
     const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => getStartOfWeek(new Date()));
     const [addingDate, setAddingDate] = useState<string | null>(null);
+
+    // Form state
     const [newDate, setNewDate] = useState('');
     const [newTitle, setNewTitle] = useState('בוקר (08:00 - 16:00)');
-    const [newTotalRequired, setNewTotalRequired] = useState(3);
-    const [newIsUrgent, setNewIsUrgent] = useState(false);
+    const [roleRows, setRoleRows] = useState<RoleRequirement[]>([newRow()]);
 
-    const handleAdd = async (e: React.FormEvent) => {
-        e.preventDefault();
-        try {
-            await addShift(newDate, newTitle, newTotalRequired, newIsUrgent);
-            setAddingDate(null);
-        } catch (err) {
-            console.error("Failed to add shift", err);
-            alert("שגיאה בהוספת משמרת");
-        }
-    };
-
+    // ── Form helpers ──────────────────────────────────────────────────────────
     const openAddShiftForDate = (dateStr: string) => {
         setNewDate(dateStr);
         setNewTitle('בוקר (08:00 - 16:00)');
-        setNewTotalRequired(3);
-        setNewIsUrgent(false);
+        setRoleRows([newRow()]);
         setAddingDate(dateStr);
     };
 
+    const updateRow = (index: number, patch: Partial<RoleRequirement>) => {
+        setRoleRows(prev => prev.map((r, i) => i === index ? { ...r, ...patch } : r));
+    };
+
+    const addRow = () => setRoleRows(prev => [...prev, newRow()]);
+
+    const removeRow = (index: number) => {
+        setRoleRows(prev => prev.length === 1 ? prev : prev.filter((_, i) => i !== index));
+    };
+
+    const handleAdd = async (e: React.FormEvent) => {
+        e.preventDefault();
+        // Validate: all rows must have a role name
+        for (const row of roleRows) {
+            if (!row.role.trim()) {
+                alert('יש למלא שם תפקיד בכל שורה');
+                return;
+            }
+        }
+        try {
+            await addShift(newDate, newTitle, roleRows);
+            setAddingDate(null);
+        } catch (err) {
+            console.error('Failed to add shift', err);
+            alert('שגיאה בהוספת משמרת');
+        }
+    };
+
+    // ── Week navigation ───────────────────────────────────────────────────────
     const nextWeek = () => {
         const next = new Date(currentWeekStart);
         next.setDate(next.getDate() + 7);
@@ -60,7 +97,7 @@ export default function RosterView() {
         setAddingDate(null);
     };
 
-    // Group shifts by date for display
+    // ── Derived data ──────────────────────────────────────────────────────────
     const groupedShifts = shifts.reduce((acc, shift) => {
         if (!acc[shift.date]) acc[shift.date] = [];
         acc[shift.date].push(shift);
@@ -73,32 +110,46 @@ export default function RosterView() {
         const year = d.getFullYear();
         const month = String(d.getMonth() + 1).padStart(2, '0');
         const day = String(d.getDate()).padStart(2, '0');
-        return {
-            dateObj: d,
-            dateString: `${year}-${month}-${day}`
-        };
+        return { dateObj: d, dateString: `${year}-${month}-${day}` };
     });
 
     const isCurrentWeek = getStartOfWeek(new Date()).getTime() === currentWeekStart.getTime();
 
+    // ── Render ────────────────────────────────────────────────────────────────
     return (
         <div className="space-y-6">
+            {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                 <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                     <Calendar className="w-6 h-6 text-brand-blue" />
                     יומן שבועי
                 </h2>
-                <div className="flex items-center gap-2 bg-white rounded-xl shadow-sm border border-slate-200 p-1" dir="ltr">
-                    <button onClick={nextWeek} className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors" title="שבוע הבא">
+
+                {/* Week navigator – dir=rtl so the visual order matches Hebrew reading direction */}
+                <div className="flex items-center gap-2 bg-white rounded-xl shadow-sm border border-slate-200 p-1" dir="rtl">
+                    {/* In RTL, ChevronRight points left → "previous" */}
+                    <button
+                        onClick={prevWeek}
+                        className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"
+                        title="שבוע קודם"
+                    >
                         <ChevronRight className="w-5 h-5" />
                     </button>
                     <button
                         onClick={jumpToToday}
-                        className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${isCurrentWeek ? 'bg-brand-blue/10 text-brand-blue' : 'hover:bg-slate-100 text-slate-700'}`}
+                        className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${isCurrentWeek
+                                ? 'bg-brand-blue/10 text-brand-blue'
+                                : 'hover:bg-slate-100 text-slate-700'
+                            }`}
                     >
                         השבוע
                     </button>
-                    <button onClick={prevWeek} className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors" title="שבוע קודם">
+                    {/* ChevronLeft points right → "next" */}
+                    <button
+                        onClick={nextWeek}
+                        className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"
+                        title="שבוע הבא"
+                    >
                         <ChevronLeft className="w-5 h-5" />
                     </button>
                 </div>
@@ -119,7 +170,12 @@ export default function RosterView() {
                             const isToday = new Date().toDateString() === dateObj.toDateString();
 
                             return (
-                                <div key={dateString} id={`day-${dateString}`} className={`p-4 md:p-6 transition-colors ${isToday ? 'bg-blue-50/30' : 'hover:bg-slate-50/50'}`}>
+                                <div
+                                    key={dateString}
+                                    id={`day-${dateString}`}
+                                    className={`p-4 md:p-6 transition-colors ${isToday ? 'bg-blue-50/30' : 'hover:bg-slate-50/50'}`}
+                                >
+                                    {/* Day header */}
                                     <div className="flex justify-between items-center mb-4">
                                         <h3 className={`font-bold flex items-center gap-2 ${isToday ? 'text-brand-blue' : 'text-slate-900'}`}>
                                             <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-2">
@@ -140,80 +196,153 @@ export default function RosterView() {
                                         )}
                                     </div>
 
+                                    {/* ── Add-shift form ─────────────────────────────────── */}
                                     {addingDate === dateString && (
-                                        <form onSubmit={handleAdd} className="bg-slate-50 p-4 md:p-5 rounded-xl shadow-inner border border-brand-blue/20 mb-4 animate-in fade-in slide-in-from-top-2">
+                                        <form
+                                            onSubmit={handleAdd}
+                                            className="bg-slate-50 p-4 md:p-5 rounded-xl shadow-inner border border-brand-blue/20 mb-4 animate-in fade-in slide-in-from-top-2"
+                                        >
                                             <h4 className="font-bold text-slate-700 mb-3 text-sm">הוספת משמרת חדשה</h4>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <select value={newTitle} onChange={e => setNewTitle(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-2 focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm">
-                                                    <option value="בוקר (08:00 - 16:00)">בוקר (08:00 - 16:00)</option>
-                                                    <option value="ערב (16:00 - 24:00)">ערב (16:00 - 24:00)</option>
-                                                    <option value="לילה (24:00 - 08:00)">לילה (24:00 - 08:00)</option>
-                                                    <option value="משמרת כפולה">משמרת כפולה</option>
-                                                </select>
-                                                <div className="flex flex-col">
-                                                    <div className="flex items-center gap-2 h-full">
-                                                        <label className="text-sm font-medium text-slate-600 whitespace-nowrap">מספר עובדים:</label>
-                                                        <input required type="number" min="1" max="20" value={newTotalRequired} onChange={e => setNewTotalRequired(Number(e.target.value))} className="w-20 border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm" />
-                                                    </div>
+
+                                            {/* Shift type selector */}
+                                            <select
+                                                value={newTitle}
+                                                onChange={e => setNewTitle(e.target.value)}
+                                                className="w-full border border-slate-200 rounded-xl px-4 py-2 focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm mb-4 bg-white"
+                                            >
+                                                <option value="בוקר (08:00 - 16:00)">בוקר (08:00 - 16:00)</option>
+                                                <option value="ערב (16:00 - 24:00)">ערב (16:00 - 24:00)</option>
+                                                <option value="לילה (24:00 - 08:00)">לילה (24:00 - 08:00)</option>
+                                                <option value="משמרת כפולה">משמרת כפולה</option>
+                                            </select>
+
+                                            {/* Role requirements table */}
+                                            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mb-3">
+                                                {/* Table header */}
+                                                <div className="grid grid-cols-[1fr_60px_130px_36px] gap-2 px-3 py-2 bg-slate-100 text-xs font-semibold text-slate-500">
+                                                    <span>תפקיד</span>
+                                                    <span className="text-center">כמות</span>
+                                                    <span className="text-center">רמה</span>
+                                                    <span />
                                                 </div>
-                                                <div className="md:col-span-2 flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-100">
-                                                    <input type="checkbox" id="urgent" checked={newIsUrgent} onChange={e => setNewIsUrgent(e.target.checked)} className="w-5 h-5 accent-brand-blue rounded cursor-pointer" />
-                                                    <label htmlFor="urgent" className="font-medium text-slate-700 text-sm cursor-pointer select-none">סמן משמרת בסיכון / דחופה</label>
+
+                                                {/* Role rows */}
+                                                <div className="divide-y divide-slate-100">
+                                                    {roleRows.map((row, idx) => (
+                                                        <div
+                                                            key={idx}
+                                                            className="grid grid-cols-[1fr_60px_130px_36px] gap-2 px-3 py-2 items-center"
+                                                        >
+                                                            {/* Role name (with datalist suggestions) */}
+                                                            <div>
+                                                                <input
+                                                                    list="role-suggestions"
+                                                                    required
+                                                                    value={row.role}
+                                                                    onChange={e => updateRow(idx, { role: e.target.value })}
+                                                                    placeholder="למשל: מלצר"
+                                                                    className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-brand-blue focus:outline-none"
+                                                                />
+                                                                <datalist id="role-suggestions">
+                                                                    {ROLE_SUGGESTIONS.map(r => (
+                                                                        <option key={r} value={r} />
+                                                                    ))}
+                                                                </datalist>
+                                                            </div>
+
+                                                            {/* Count */}
+                                                            <input
+                                                                type="number"
+                                                                required
+                                                                min={1}
+                                                                max={50}
+                                                                value={row.count}
+                                                                onChange={e => updateRow(idx, { count: Number(e.target.value) })}
+                                                                className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center focus:ring-2 focus:ring-brand-blue focus:outline-none"
+                                                            />
+
+                                                            {/* Skill level */}
+                                                            <select
+                                                                value={row.skillLevel}
+                                                                onChange={e => updateRow(idx, { skillLevel: e.target.value as SkillLevel })}
+                                                                className={`w-full border rounded-lg px-2 py-1.5 text-xs font-semibold focus:ring-2 focus:ring-brand-blue focus:outline-none ${SKILL_COLORS[row.skillLevel]}`}
+                                                            >
+                                                                {(Object.entries(SKILL_LEVEL_LABELS) as [SkillLevel, string][]).map(([key, label]) => (
+                                                                    <option key={key} value={key}>{label}</option>
+                                                                ))}
+                                                            </select>
+
+                                                            {/* Remove row button */}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => removeRow(idx)}
+                                                                className="text-slate-300 hover:text-red-500 transition-colors flex items-center justify-center"
+                                                                title="הסר שורה"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    ))}
                                                 </div>
+
+                                                {/* Add role row */}
+                                                <button
+                                                    type="button"
+                                                    onClick={addRow}
+                                                    className="w-full py-2 text-xs text-brand-blue hover:bg-brand-blue/5 flex items-center justify-center gap-1 transition-colors border-t border-slate-100"
+                                                >
+                                                    <Plus className="w-3.5 h-3.5" />
+                                                    הוסף תפקיד
+                                                </button>
                                             </div>
-                                            <div className="mt-4 flex justify-end gap-2 text-sm">
-                                                <button type="button" onClick={() => setAddingDate(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-200 font-medium rounded-xl transition-colors">
+
+                                            {/* Summary: total workers */}
+                                            <p className="text-xs text-slate-500 mb-3">
+                                                סה&quot;כ:{' '}
+                                                <span className="font-bold text-slate-700">
+                                                    {roleRows.reduce((s, r) => s + (r.count || 0), 0)}
+                                                </span>{' '}
+                                                עובדים
+                                            </p>
+
+                                            {/* Actions */}
+                                            <div className="flex justify-end gap-2 text-sm">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setAddingDate(null)}
+                                                    className="px-4 py-2 text-slate-600 hover:bg-slate-200 font-medium rounded-xl transition-colors"
+                                                >
                                                     ביטול
                                                 </button>
-                                                <button type="submit" className="bg-brand-green hover:bg-green-600 text-white font-bold py-2 px-6 rounded-xl transition-all shadow-sm">
+                                                <button
+                                                    type="submit"
+                                                    className="bg-brand-blue hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-xl transition-all shadow-sm"
+                                                >
                                                     שמור משמרת
                                                 </button>
                                             </div>
                                         </form>
                                     )}
 
+                                    {/* ── Existing shifts display ────────────────────────── */}
                                     {dayShifts.length > 0 ? (
                                         <div className="grid gap-3 md:grid-cols-2">
                                             {dayShifts.map((shift) => (
-                                                <div key={shift.id} className={`p-4 rounded-xl border ${shift.isUrgent ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-white'} flex justify-between items-center group shadow-sm`}>
-                                                    <div>
-                                                        <div className="font-medium text-slate-800 text-sm md:text-base">{shift.title}</div>
-                                                        <div className="text-xs md:text-sm text-slate-500 mt-1 font-medium">
-                                                            {shift.filledCount} מתוך {shift.totalRequired} כיסויים
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        {shift.isUrgent ? (
-                                                            <button className="text-[10px] md:text-xs font-bold text-red-600 bg-red-100 px-2 md:px-3 py-1 md:py-1.5 rounded-full hover:bg-red-200 transition-colors">
-                                                                דרוש איוש!
-                                                            </button>
-                                                        ) : shift.filledCount >= shift.totalRequired ? (
-                                                            <CheckCircle2 className="w-5 h-5 md:w-6 md:h-6 text-green-500" />
-                                                        ) : (
-                                                            <button className="text-[10px] md:text-xs font-bold text-slate-600 bg-slate-100 px-2 md:px-3 py-1 md:py-1.5 rounded-full">
-                                                                חסר איש צוות
-                                                            </button>
-                                                        )}
-
-                                                        <button
-                                                            onClick={() => {
-                                                                if (window.confirm('האם אתה בטוח שברצונך למחוק את המשמרת?')) {
-                                                                    removeShift(shift.id);
-                                                                }
-                                                            }}
-                                                            className="text-slate-300 hover:text-red-500 transition-colors p-2 rounded-full cursor-pointer bg-slate-50 hover:bg-red-50"
-                                                            title="מחק משמרת"
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
-                                                </div>
+                                                <ShiftCard
+                                                    key={shift.id}
+                                                    shift={shift}
+                                                    onRemove={() => {
+                                                        if (window.confirm('האם אתה בטוח שברצונך למחוק את המשמרת?')) {
+                                                            removeShift(shift.id);
+                                                        }
+                                                    }}
+                                                />
                                             ))}
                                         </div>
                                     ) : (
                                         !addingDate || addingDate !== dateString ? (
                                             <div className="text-slate-400 text-sm py-2 px-2 flex items-center gap-2 bg-slate-50/50 rounded-lg border border-slate-100 border-dashed">
-                                                <span className="block w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+                                                <span className="block w-1.5 h-1.5 rounded-full bg-slate-300" />
                                                 אין משמרות שובצו ליום זה
                                             </div>
                                         ) : null
@@ -224,6 +353,59 @@ export default function RosterView() {
                     )}
                 </div>
             </div>
+        </div>
+    );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// ShiftCard – shows title + role/level breakdown
+// ────────────────────────────────────────────────────────────────────────────
+function ShiftCard({ shift, onRemove }: { shift: Shift; onRemove: () => void }) {
+    const roles = shift.roleRequirements ?? [];
+    const isFilled = shift.filledCount >= shift.totalRequired;
+
+    return (
+        <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm">
+            {/* Header row */}
+            <div className="flex justify-between items-start gap-2 mb-2">
+                <div>
+                    <div className="font-semibold text-slate-800 text-sm">{shift.title}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                        {shift.filledCount} מתוך {shift.totalRequired} כיסויים
+                    </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                    {isFilled ? (
+                        <CheckCircle2 className="w-5 h-5 text-green-500" />
+                    ) : (
+                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                            חסר איש צוות
+                        </span>
+                    )}
+                    <button
+                        onClick={onRemove}
+                        className="text-slate-300 hover:text-red-500 transition-colors p-1.5 rounded-full hover:bg-red-50"
+                        title="מחק משמרת"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                    </button>
+                </div>
+            </div>
+
+            {/* Role requirements breakdown */}
+            {roles.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                    {roles.map((r, i) => (
+                        <span
+                            key={i}
+                            className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border ${SKILL_COLORS[r.skillLevel]}`}
+                        >
+                            {r.count}× {r.role}
+                            <span className="opacity-70">({SKILL_LEVEL_LABELS[r.skillLevel].split(' ')[1] ?? SKILL_LEVEL_LABELS[r.skillLevel]})</span>
+                        </span>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }

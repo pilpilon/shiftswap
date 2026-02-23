@@ -2,14 +2,31 @@ import { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
+// Skill levels for workers - non-offensive, professional terminology
+export type SkillLevel = 'star' | 'standard' | 'junior';
+
+export const SKILL_LEVEL_LABELS: Record<SkillLevel, string> = {
+    star: '⭐ כוכב',
+    standard: '✓ סטנדרטי',
+    junior: '◎ מתחיל',
+};
+
+// A role requirement row within a shift (e.g., "2 waiters - star level")
+export interface RoleRequirement {
+    role: string;       // e.g., "מלצר", "טבח", "מארחת"
+    count: number;      // total needed for this role
+    skillLevel: SkillLevel; // required skill level
+}
+
 export interface Shift {
     id: string;
     businessId: string;
-    date: string; // ISO String or simple YYYY-MM-DD
+    date: string; // YYYY-MM-DD
     title: string; // e.g., 'בוקר (08:00 - 16:00)'
-    totalRequired: number;
+    totalRequired: number; // sum of all role counts (computed)
     filledCount: number;
-    isUrgent: boolean;
+    roleRequirements: RoleRequirement[]; // NEW: role+level breakdown
+    isUrgent?: boolean; // kept for backward-compat, no longer set from UI
 }
 
 export function useShifts(businessId: string | undefined) {
@@ -34,13 +51,17 @@ export function useShifts(businessId: string | undefined) {
         const unsubscribe = onSnapshot(q, (snapshot) => {
             clearTimeout(failSafe);
             const shiftsData: Shift[] = [];
-            snapshot.forEach((doc) => {
-                shiftsData.push({ id: doc.id, ...doc.data() } as Shift);
+            snapshot.forEach((docSnap) => {
+                const data = docSnap.data() as Omit<Shift, 'id'>;
+                // Normalize: ensure roleRequirements always exists (fallback for old docs)
+                shiftsData.push({
+                    ...data,
+                    id: docSnap.id,
+                    roleRequirements: data.roleRequirements ?? [],
+                } as Shift);
             });
 
-            // Sort by date (assuming YYYY-MM-DD logic)
             shiftsData.sort((a, b) => a.date.localeCompare(b.date));
-
             setShifts(shiftsData);
             setLoading(false);
         }, (err) => {
@@ -55,15 +76,21 @@ export function useShifts(businessId: string | undefined) {
         };
     }, [businessId]);
 
-    const addShift = async (date: string, title: string, totalRequired: number, isUrgent: boolean = false) => {
+    const addShift = async (
+        date: string,
+        title: string,
+        roleRequirements: RoleRequirement[]
+    ) => {
         if (!businessId) throw new Error("No business ID");
+        const totalRequired = roleRequirements.reduce((sum, r) => sum + r.count, 0);
         return await addDoc(collection(db, 'shifts'), {
             businessId,
             date,
             title,
             totalRequired,
             filledCount: 0,
-            isUrgent,
+            roleRequirements,
+            isUrgent: false,
             createdAt: new Date().toISOString()
         });
     };
@@ -73,7 +100,7 @@ export function useShifts(businessId: string | undefined) {
     };
 
     const updateShift = async (shiftId: string, data: Partial<Shift>) => {
-        return await updateDoc(doc(db, 'shifts', shiftId), data);
+        return await updateDoc(doc(db, 'shifts', shiftId), data as Record<string, unknown>);
     };
 
     return { shifts, loading, error, addShift, removeShift, updateShift };
