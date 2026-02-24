@@ -234,6 +234,7 @@ export async function getStaffPhoneByName(businessId: string, name: string): Pro
         const allNames = snap.docs.map(d => `"${d.data().name}"`).join(', ');
         console.log(`[FIREBASE] getStaffPhoneByName: searching for "${name}" (cleaned: "${cleanName}") in [${allNames}]`);
 
+        const matches: { name: string; phone: string }[] = [];
         for (const doc of snap.docs) {
             const data = doc.data();
             if (!data.name || !data.phone) continue;
@@ -250,10 +251,20 @@ export async function getStaffPhoneByName(businessId: string, name: string): Pro
             if (isMatch) {
                 let p = data.phone.replace(/[^0-9]/g, '');
                 if (p.startsWith('0')) p = '972' + p.slice(1);
-                console.log(`[FIREBASE] Name match: "${name}" → "${data.name}" → ${p}`);
-                return p;
+                matches.push({ name: data.name, phone: p });
             }
         }
+
+        if (matches.length === 0) return null;
+
+        if (matches.length > 1) {
+            console.warn(`[FIREBASE] ⚠️ AMBIGUOUS name match for "${name}" — found ${matches.length} employees: ${matches.map(m => `"${m.name}"`).join(', ')}. Returning first. Consider adding last name to differentiate.`);
+        } else {
+            console.log(`[FIREBASE] Name match: "${name}" → "${matches[0].name}" → ${matches[0].phone}`);
+        }
+
+        return matches[0].phone;
+
     } catch (err) {
         console.error('[FIREBASE] getStaffPhoneByName error:', err);
     }
