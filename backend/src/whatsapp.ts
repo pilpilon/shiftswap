@@ -8,6 +8,9 @@ export const activeSockets: Record<string, any> = {};
 export const pendingSockets: Record<string, any> = {};
 export const qrCodes: Record<string, string> = {};
 
+// Track JIDs that are currently in an active conversation with the bot (auto-clears after 30m)
+const activeConversations: Record<string, Set<string>> = {};
+
 export const initWhatsAppSocket = async (businessId: string) => {
     console.log(`[WHATSAPP] Starting socket for business ${businessId}`);
 
@@ -93,33 +96,48 @@ export const initWhatsAppSocket = async (businessId: string) => {
 
         console.log(`[WHATSAPP] Received message from ${msg.key.remoteJid}: ${incomingText}`);
 
-        // Keyword filter — only invoke AI for shift-related messages
+        // Keyword filter — only invoke AI for shift-related messages.
+        // EXCEPTION: if this JID is already mid-conversation (bot already replied),
+        // bypass the filter to allow natural follow-up replies like "כן כי אני חולה".
         const SHIFT_KEYWORDS = [
             'משמרת', 'משמרות', 'פנוי', 'פנויה', 'זמינות', 'סידור',
             'תורנות', 'החלפה', 'אישור', 'ביטול', 'לא יכול', 'לא אוכל',
-            'שיבוץ', 'עבודה'
+            'שיבוץ', 'עבודה', 'כן', 'לא', 'חולה', 'חירום'
         ];
         const lowerText = incomingText.toLowerCase();
         const isShiftRelated = SHIFT_KEYWORDS.some(kw => lowerText.includes(kw));
-        if (!isShiftRelated) {
-            console.log(`[WHATSAPP] Ignoring non-shift message from ${msg.key.remoteJid}`);
+        const jid = msg.key.remoteJid!;
+        const isActiveConversation = activeConversations[businessId]?.has(jid);
+
+        if (!isShiftRelated && !isActiveConversation) {
+            console.log(`[WHATSAPP] Ignoring non-shift message from ${jid}`);
             return;
         }
 
         try {
             const { isEmployeePhone } = await import('./firebase');
-            const isEmployee = await isEmployeePhone(businessId, msg.key.remoteJid!);
+            const isEmployee = await isEmployeePhone(businessId, jid);
 
             if (!isEmployee) {
-                console.log(`[WHATSAPP] Ignoring message from unauthorized number: ${msg.key.remoteJid}`);
+                console.log(`[WHATSAPP] Ignoring message from unauthorized number: ${jid}`);
                 return;
             }
 
             const { processIncomingMessage } = await import('./ai');
-            const aiResponse = await processIncomingMessage(businessId, msg.key.remoteJid!, incomingText);
+            const aiResponse = await processIncomingMessage(businessId, jid, incomingText);
 
-            await sock.sendMessage(msg.key.remoteJid!, { text: aiResponse });
-            console.log(`[WHATSAPP] AI replied to ${msg.key.remoteJid}`);
+            await sock.sendMessage(jid, { text: aiResponse });
+            console.log(`[WHATSAPP] AI replied to ${jid}`);
+
+            // Mark this JID as in an active conversation for 30 minutes
+            if (!activeConversations[businessId]) {
+                activeConversations[businessId] = new Set();
+            }
+            activeConversations[businessId].add(jid);
+            setTimeout(() => {
+                activeConversations[businessId]?.delete(jid);
+                console.log(`[WHATSAPP] Conversation timeout for ${jid}`);
+            }, 30 * 60 * 1000);
         } catch (err) {
             console.error("[WHATSAPP] Error processing AI response:", err);
         }
