@@ -120,6 +120,74 @@ app.post('/api/whatsapp/disconnect', async (req, res) => {
 });
 
 
+// ─── Publish Schedule: send real WhatsApp messages to assigned workers ───────
+app.post('/api/whatsapp/publish-schedule', async (req, res) => {
+    const { businessId, shifts, staff } = req.body as {
+        businessId: string;
+        shifts: Array<{
+            date: string;
+            title: string;
+            roleRequirements: Array<{ role: string; assignedIds?: string[] }>;
+        }>;
+        staff: Array<{ id: string; name: string; phone: string }>;
+    };
+
+    if (!businessId || !shifts || !staff) {
+        return res.status(400).json({ error: 'businessId, shifts and staff are required' });
+    }
+
+    const sock = activeSockets[businessId];
+    if (!sock) {
+        return res.status(503).json({ error: 'not_connected', message: 'WhatsApp לא מחובר. חבר את הוואטסאפ בהגדרות.' });
+    }
+
+    // Build a map of staffId → { name, phone }
+    const staffById: Record<string, { name: string; phone: string }> = {};
+    for (const s of staff) {
+        if (s.id && s.phone) {
+            staffById[s.id] = { name: s.name, phone: s.phone };
+        }
+    }
+
+    let sentCount = 0;
+    const errors: string[] = [];
+
+    for (const shift of shifts) {
+        // Track phones already messaged for this shift to avoid duplicates
+        const sentThisShift = new Set<string>();
+
+        for (const req of shift.roleRequirements) {
+            for (const staffId of (req.assignedIds ?? [])) {
+                const member = staffById[staffId];
+                if (!member) continue;
+
+                // Normalize Israeli phone to WhatsApp JID format (972XXXXXXXXX@s.whatsapp.net)
+                let phone = member.phone.replace(/[^0-9]/g, '');
+                if (phone.startsWith('0')) phone = '972' + phone.slice(1);
+                const jid = `${phone}@s.whatsapp.net`;
+
+                if (sentThisShift.has(jid)) continue;
+                sentThisShift.add(jid);
+
+                const [year, month, day] = shift.date.split('-');
+                const dateHebrew = `${day}/${month}/${year}`;
+                const message = `שלום ${member.name} 👋\n\nהסידור השבועי פורסם!\n\n📅 תאריך: ${dateHebrew}\n⏰ משמרת: ${shift.title}\n\nתגיב "אישור" לאישור קבלת ההודעה, או פנה לינה ישירות אם יש לך בקשה לשינוי.`;
+
+                try {
+                    await sock.sendMessage(jid, { text: message });
+                    sentCount++;
+                    console.log(`[PUBLISH] Sent to ${member.name} (${jid})`);
+                } catch (err: any) {
+                    console.error(`[PUBLISH] Failed to send to ${member.name}:`, err.message);
+                    errors.push(`${member.name}: ${err.message}`);
+                }
+            }
+        }
+    }
+
+    res.json({ sent: sentCount, errors });
+});
+
 app.listen(PORT, () => {
     console.log(`Backend server running on port ${PORT}`);
 });

@@ -10,6 +10,11 @@ import {
 } from 'lucide-react';
 
 // ────────────────────────────────────────────────────────────────────────────
+// Config
+// ────────────────────────────────────────────────────────────────────────────
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+
+// ────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ────────────────────────────────────────────────────────────────────────────
 const getStartOfWeek = (date: Date) => {
@@ -147,15 +152,31 @@ export default function RosterView() {
         setShowPublishConfirm(true);
     };
 
-    const confirmPublish = () => {
+    const confirmPublish = async () => {
         setShowPublishConfirm(false);
         setIsPublishing(true);
-        // Simulate an API call / sending WhatsApp messages
-        setTimeout(() => {
+        setAssignMsg(null);
+        try {
+            const res = await fetch(`${API_URL}/api/whatsapp/publish-schedule`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ businessId: user?.businessId, shifts, staff }),
+            });
+            const data = await res.json();
+
+            if (!res.ok || data.error === 'not_connected') {
+                setAssignMsg('❌ WhatsApp לא מחובר — חבר את הוואטסאפ בהגדרות לפני שגרת הסידור.');
+            } else {
+                const errNote = data.errors?.length > 0 ? ` (${data.errors.length} שגיאות)` : '';
+                setAssignMsg(`✅ הסידור נשלח! ${data.sent} הודעות וואטסאפ נשלחו לעובדים${errNote}`);
+            }
+        } catch (err) {
+            console.error('Publish failed:', err);
+            setAssignMsg('❌ שגיאת תקשורת עם השרת — ודא שהשרת פועל.');
+        } finally {
             setIsPublishing(false);
-            setAssignMsg('✅ הסידור פורסם בהצלחה והודעות נשלחו לעובדים!');
-            setTimeout(() => setAssignMsg(null), 5000);
-        }, 1500);
+            setTimeout(() => setAssignMsg(null), 7000);
+        }
     };
 
     // ── Week navigation ───────────────────────────────────────────────────────
