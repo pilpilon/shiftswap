@@ -474,19 +474,17 @@ export default function RosterView() {
                                                         >
                                                             {/* Role name */}
                                                             <div>
-                                                                <input
-                                                                    list="role-suggestions"
+                                                                <select
                                                                     required
                                                                     value={row.role}
                                                                     onChange={e => updateRow(idx, { role: e.target.value })}
-                                                                    placeholder="למשל: מלצר"
-                                                                    className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-brand-blue focus:outline-none text-right"
-                                                                />
-                                                                <datalist id="role-suggestions">
+                                                                    className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-brand-blue focus:outline-none text-right appearance-none"
+                                                                >
+                                                                    <option value="" disabled hidden>בחר תפקיד</option>
                                                                     {ROLE_SUGGESTIONS.map(r => (
-                                                                        <option key={r} value={r} />
+                                                                        <option key={r} value={r}>{r}</option>
                                                                     ))}
-                                                                </datalist>
+                                                                </select>
                                                             </div>
 
                                                             {/* Count */}
@@ -586,6 +584,7 @@ export default function RosterView() {
                                                         e.preventDefault();
                                                         handleEditClick(shift);
                                                     }}
+                                                    onUpdate={updateShift}
                                                 />
                                             ))}
                                         </div>
@@ -610,10 +609,31 @@ export default function RosterView() {
 // ────────────────────────────────────────────────────────────────────────────
 // ShiftCard — fixed RTL layout, no text truncation
 // ────────────────────────────────────────────────────────────────────────────
-function ShiftCard({ shift, staff, onRemove, onEdit }: { shift: Shift; staff: StaffMember[]; onRemove: () => void; onEdit: (e: React.MouseEvent) => void }) {
+function ShiftCard({ shift, staff, onRemove, onEdit, onUpdate }: { shift: Shift; staff: StaffMember[]; onRemove: () => void; onEdit: (e: React.MouseEvent) => void; onUpdate: (shiftId: string, updates: Partial<Shift>) => Promise<void> }) {
     const [confirmDelete, setConfirmDelete] = useState(false);
     const roles = shift.roleRequirements ?? [];
     const isFilled = shift.filledCount >= shift.totalRequired;
+
+    const handleUnassign = async (e: React.MouseEvent, roleIndex: number, staffId: string) => {
+        e.stopPropagation();
+        if (!confirm('האם להסיר את העובד מהמשמרת?')) return;
+
+        const updatedRoles = [...roles];
+        const role = updatedRoles[roleIndex];
+        role.assignedIds = (role.assignedIds || []).filter(id => id !== staffId);
+
+        const newFilledCount = updatedRoles.reduce((sum, r) => sum + (r.assignedIds?.length || 0), 0);
+
+        try {
+            await onUpdate(shift.id, {
+                roleRequirements: updatedRoles,
+                filledCount: newFilledCount
+            });
+        } catch (err) {
+            console.error('Failed to unassign staff:', err);
+            alert('שגיאה בהסרת עובד');
+        }
+    };
 
     return (
         <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm" dir="rtl">
@@ -630,19 +650,19 @@ function ShiftCard({ shift, staff, onRemove, onEdit }: { shift: Shift; staff: St
                 {/* Status + actions */}
                 <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
                     {isFilled ? (
-                        <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
+                        <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
                     ) : (
                         <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full whitespace-nowrap">
                             ממתין לאיוש
                         </span>
                     )}
                     {confirmDelete ? (
-                        <div className="flex items-center gap-2 bg-red-50 rounded-lg px-2 py-1 border border-red-200 animate-in fade-in zoom-in duration-200">
-                            <span className="text-xs font-bold text-red-700">למחוק?</span>
+                        <div className="flex items-center gap-2 bg-rose-50 rounded-lg px-2 py-1 border border-rose-200 animate-in fade-in zoom-in duration-200">
+                            <span className="text-xs font-bold text-rose-700">למחוק?</span>
                             <button
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); onRemove(); }}
-                                className="text-xs bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700 transition"
+                                className="text-xs bg-rose-600 text-white px-3 py-1 rounded-md hover:bg-rose-700 transition"
                             >
                                 כן
                             </button>
@@ -667,7 +687,7 @@ function ShiftCard({ shift, staff, onRemove, onEdit }: { shift: Shift; staff: St
                             <button
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
-                                className="text-slate-400 hover:text-red-500 transition-colors p-2 md:p-1.5 rounded-full hover:bg-red-50"
+                                className="text-slate-400 hover:text-rose-500 transition-colors p-2 md:p-1.5 rounded-full hover:bg-rose-50"
                                 title="מחק משמרת"
                             >
                                 <Trash2 className="w-5 h-5 md:w-4 md:h-4" />
@@ -681,10 +701,6 @@ function ShiftCard({ shift, staff, onRemove, onEdit }: { shift: Shift; staff: St
             {roles.length > 0 && (
                 <div className="flex flex-col gap-2 mt-3 p-3 bg-slate-50/50 rounded-lg border border-slate-100">
                     {roles.map((r, i) => {
-                        const assignedNames = (r.assignedIds || [])
-                            .map(id => staff.find(s => s.id === id)?.name || 'עובד שנמחק')
-                            .filter(Boolean);
-
                         return (
                             <div key={i} className={`flex flex-col gap-1.5 p-2.5 rounded-lg border ${SKILL_COLORS[r.skillLevel]}`}>
                                 <div className="flex items-center gap-1.5 text-sm font-semibold">
@@ -692,12 +708,27 @@ function ShiftCard({ shift, staff, onRemove, onEdit }: { shift: Shift; staff: St
                                     <span>{r.role}</span>
                                     <span className="opacity-70 text-xs font-normal">({SKILL_SHORT[r.skillLevel]})</span>
                                 </div>
-                                {assignedNames.length > 0 ? (
-                                    <div className="text-sm font-medium pr-1 text-slate-700">
-                                        שובצו: {assignedNames.join(', ')}
+                                {(r.assignedIds && r.assignedIds.length > 0) ? (
+                                    <div className="text-sm font-medium pr-1 text-slate-700 flex flex-wrap gap-1 mt-1">
+                                        <span className="text-xs text-slate-500 self-center ml-1">שובצו:</span>
+                                        {r.assignedIds.map(id => {
+                                            const member = staff.find(s => s.id === id);
+                                            const name = member?.name || 'עובד שנמחק';
+                                            return (
+                                                <button
+                                                    key={id}
+                                                    onClick={(e) => handleUnassign(e, i, id)}
+                                                    className="inline-flex items-center gap-1 bg-white/60 hover:bg-rose-100 hover:text-rose-700 px-2 py-0.5 rounded border border-transparent hover:border-rose-200 transition-colors group"
+                                                    title="הסר עובד ממשמרת"
+                                                >
+                                                    {name}
+                                                    <Trash2 className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                </button>
+                                            )
+                                        })}
                                     </div>
                                 ) : (
-                                    <div className="text-xs text-slate-500 pr-1">— לא שובץ אף עובד —</div>
+                                    <div className="text-xs text-slate-500 pr-1 mt-1">— לא שובץ אף עובד —</div>
                                 )}
                             </div>
                         );
