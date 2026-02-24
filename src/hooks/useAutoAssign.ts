@@ -1,14 +1,14 @@
-import { updateDoc, doc } from 'firebase/firestore';
+import { updateDoc, doc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { type Shift, type RoleRequirement } from './useShifts';
 import { type StaffMember } from './useStaff';
 
 // ────────────────────────────────────────────────────────────────────────────
-// Auto-assign logic
+// Auto-assign logic (Availability-Aware)
 // Matches staff to shift role requirements based on:
-//  1. Role match (staff.roles includes requirement.role)
-//  2. Skill level match: star satisfies star/standard/junior; standard satisfies standard/junior; junior satisfies junior
-// Returns the updated filledCount for each shift.
+//  1. Availability: employee must have submitted the shift's day-of-week
+//  2. Role match (staff.roles includes requirement.role)
+//  3. Skill level match: star satisfies star/standard/junior; standard satisfies standard/junior; junior satisfies junior
 // ────────────────────────────────────────────────────────────────────────────
 
 const SKILL_RANK: Record<string, number> = {
@@ -17,23 +17,87 @@ const SKILL_RANK: Record<string, number> = {
     junior: 1,
 };
 
+// Hebrew weekday names ordered Sun-Sat (matching JS Date.getDay())
+const WEEKDAY_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+
+/** Format a YYYY-MM-DD date as the corresponding Hebrew day name */
+function getHebrewDay(dateStr: string): string {
+    const d = new Date(dateStr + 'T12:00:00'); // noon to avoid DST edge cases
+    return WEEKDAY_HE[d.getDay()];
+}
+
+/** Current ISO week key, e.g. "2026-W08" */
+function getCurrentWeekKey(): string {
+    const now = new Date();
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const weekNo = Math.ceil((((now.getTime() - startOfYear.getTime()) / 86400000) + startOfYear.getDay() + 1) / 7);
+    return `${now.getFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+}
+
+/** Normalize a phone number to 972XXXXXXXXX format */
+function normalizePhone(phone: string): string {
+    let clean = phone.replace(/\D/g, '');
+    if (clean.startsWith('0')) clean = '972' + clean.slice(1);
+    return clean;
+}
+
+/**
+ * Fetch all submitted availability for the current week.
+ * Returns a map of normalizedPhone -> string[] (Hebrew day names)
+ */
+async function fetchWeekAvailability(businessId: string): Promise<Record<string, string[]>> {
+    const weekKey = getCurrentWeekKey();
+    const weekRef = collection(db, 'availability', businessId, weekKey);
+    const snap = await getDocs(weekRef);
+    const map: Record<string, string[]> = {};
+    snap.forEach(docSnap => {
+        map[docSnap.id] = docSnap.data().days || [];
+    });
+    return map;
+}
+
 /**
  * Given a list of shifts and available staff, compute how many slots are filled
- * for each shift (by role + skill matching) and persist to Firestore.
+ * for each shift (by availability + role + skill matching) and persist to Firestore.
  */
 export async function runAutoAssign(
     shifts: Shift[],
-    staff: StaffMember[]
+    staff: StaffMember[],
+    businessId?: string
 ): Promise<{ shiftId: string; filledCount: number }[]> {
     const results: { shiftId: string; filledCount: number }[] = [];
 
+    // Fetch availability map once for the entire run
+    let availabilityMap: Record<string, string[]> = {};
+    const hasAvailability = businessId && businessId.length > 0;
+    if (hasAvailability) {
+        try {
+            availabilityMap = await fetchWeekAvailability(businessId);
+        } catch (err) {
+            console.warn('[AutoAssign] Could not fetch availability — assigning without day filter:', err);
+        }
+    }
+
     for (const shift of shifts) {
-        // Clear previous assignments to avoid duplicate accumulation if auto-assign is clicked multiple times
+        const shiftDayHe = getHebrewDay(shift.date);
+
+        // Filter the staff pool: only include those who declared they are available on this day.
+        // If the availability collection is empty (no one submitted), fall back to all staff.
+        const availableStaff = Object.keys(availabilityMap).length === 0
+            ? staff // fallback: no submissions yet → keep legacy MVP behavior
+            : staff.filter(member => {
+                const phone = normalizePhone(member.phone);
+                const memberDays = availabilityMap[phone];
+                // If employee submitted, check if they listed this day.
+                // If employee never submitted at all, exclude them.
+                return memberDays && memberDays.includes(shiftDayHe);
+            });
+
+        // Clear previous assignments to avoid duplicate accumulation
         const cleanRequirements = shift.roleRequirements.map(req => ({ ...req, assignedIds: [] }));
 
-        const { totalFilled, updatedRequirements } = computeFilledCount(cleanRequirements, staff);
+        const { totalFilled, updatedRequirements } = computeFilledCount(cleanRequirements, availableStaff);
 
-        // Only update if value changed to avoid unnecessary writes
         await updateDoc(doc(db, 'shifts', shift.id), {
             filledCount: totalFilled,
             roleRequirements: updatedRequirements
@@ -66,10 +130,6 @@ function computeFilledCount(
 
         for (let i = available.length - 1; i >= 0 && needed > 0; i--) {
             const member = available[i];
-
-            // Skip if already explicitly assigned to this shift (to prevent double-booking if running auto-assign over existing assignments)
-            // For now, we simple just clear existing assignments in the main run loop, so this is just extra safety.
-
             const memberRank = SKILL_RANK[member.skillLevel] ?? 1;
 
             // Check role match and skill level (higher rank satisfies lower requirement)
@@ -79,7 +139,6 @@ function computeFilledCount(
             if (roleMatch && memberRank >= requiredRank) {
                 totalFilled++;
                 needed--;
-                // Track assigned ID
                 newReq.assignedIds.push(member.id);
                 // Remove from available pool so the same person isn't double-assigned
                 available.splice(i, 1);

@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useAuth } from '../../../src/context/AuthContext';
 import { useStaff, type StaffMember } from '../../../src/hooks/useStaff';
 import { type SkillLevel, SKILL_LEVEL_LABELS } from '../../../src/hooks/useShifts';
-import { Search, Filter, UserPlus, Loader2, UserMinus, Edit2, Check, X, Plus } from 'lucide-react';
+import { useAvailability } from '../../../src/hooks/useAvailability';
+import { Search, Filter, UserPlus, Loader2, UserMinus, Edit2, Check, X, Plus, Calendar } from 'lucide-react';
 
 const SKILL_COLORS: Record<SkillLevel, string> = {
     star: 'bg-yellow-100 text-yellow-700 border-yellow-300',
@@ -24,6 +25,10 @@ export default function StaffView() {
     const [newSkillLevel, setNewSkillLevel] = useState<SkillLevel>('standard');
 
     const [searchQuery, setSearchQuery] = useState('');
+
+    // Availability modal
+    const [selectedEmployee, setSelectedEmployee] = useState<StaffMember | null>(null);
+    const { getEmployeeAvailability } = useAvailability(user?.businessId);
 
     // Edit state
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -278,7 +283,19 @@ export default function StaffView() {
                                                         autoFocus
                                                     />
                                                 ) : (
-                                                    member.name
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectedEmployee(member)}
+                                                        className="hover:text-brand-blue hover:underline transition-colors text-right flex items-center gap-1 group"
+                                                    >
+                                                        {member.name}
+                                                        {(() => {
+                                                            const avail = getEmployeeAvailability(member.phone);
+                                                            if (avail === null) return <span title="לא הגיש זמינות" className="w-2 h-2 rounded-full bg-slate-300 shrink-0" />;
+                                                            if (avail.length === 0) return <span title="הגיש — אין ימים זמינים" className="w-2 h-2 rounded-full bg-red-400 shrink-0" />;
+                                                            return <span title="הגיש זמינות" className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />;
+                                                        })()}
+                                                    </button>
                                                 )}
                                             </div>
                                         </td>
@@ -382,5 +399,80 @@ export default function StaffView() {
                 </div>
             </div>
         </div>
+
+        {/* Availability Modal */ }
+    {
+        selectedEmployee && (
+            <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+                onClick={() => setSelectedEmployee(null)}
+            >
+                <div
+                    className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 relative"
+                    onClick={e => e.stopPropagation()}
+                >
+                    <button
+                        onClick={() => setSelectedEmployee(null)}
+                        className="absolute top-4 left-4 text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 transition-colors"
+                    >
+                        <X className="w-5 h-5" />
+                    </button>
+
+                    <div className="flex items-center gap-3 mb-5">
+                        <div className="w-12 h-12 rounded-full bg-brand-blue/10 text-brand-blue flex items-center justify-center font-bold text-lg">
+                            {selectedEmployee.name.charAt(0)}
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-slate-800 text-lg">{selectedEmployee.name}</h3>
+                            <p className="text-sm text-slate-500">{selectedEmployee.phone}</p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 mb-4">
+                        <Calendar className="w-4 h-4 text-slate-500" />
+                        <p className="text-sm font-semibold text-slate-700">זמינות לשבוע הנוכחי</p>
+                    </div>
+
+                    {(() => {
+                        const avail = getEmployeeAvailability(selectedEmployee.phone);
+                        if (avail === null) return (
+                            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center">
+                                <p className="text-slate-500 text-sm">העובד טרם שלח זמינות לשבוע זה דרך הוואטסאפ.</p>
+                            </div>
+                        );
+                        if (avail.length === 0) return (
+                            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
+                                <p className="text-red-600 text-sm font-medium">שלח הודעה אך לא ציין ימים פנויים.</p>
+                            </div>
+                        );
+                        return (
+                            <div className="flex flex-wrap gap-2">
+                                {['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'].map(day => {
+                                    const isAvailable = avail.includes(day);
+                                    return (
+                                        <span
+                                            key={day}
+                                            className={`px-3 py-2 rounded-xl text-sm font-bold border ${isAvailable
+                                                ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
+                                                : 'bg-slate-100 text-slate-400 border-slate-200 line-through opacity-50'
+                                                }`}
+                                        >
+                                            {day}
+                                        </span>
+                                    );
+                                })}
+                            </div>
+                        );
+                    })()}
+
+                    <div className="mt-6 bg-slate-50 rounded-xl p-3 text-xs text-slate-500">
+                        <p>🟢 נקודה ירוקה = הגיש זמינות  |  🔴 אדומה = שלח אחרי ריק  |  ⚪ אפורה = לא הגיש</p>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+    </div >
     );
 }
+

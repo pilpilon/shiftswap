@@ -24,6 +24,9 @@
 - [x] Automated Deadline Reminder Cron Job
 - [x] One-Click CSV Schedule Generation & multi-send
 - [x] Schedule Query Intent ("מה הסידור שלי?")
+- [x] AI Negotiator: Auto-handles cancellations via WhatsApp & finds replacements
+- [x] Smart Auto-Assign: Filters by real submitted availability (day-of-week)
+- [x] Employee Availability Modal: Status badges + click-to-view submitted days
 
 ## Growth & SEO
 - [x] SEO Meta / OG / Twitter Cards / JSON-LD Schema

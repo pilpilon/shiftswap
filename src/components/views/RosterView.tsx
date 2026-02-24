@@ -157,7 +157,7 @@ export default function RosterView() {
         setIsAssigning(true);
         setAssignMsg(null);
         try {
-            const results = await runAutoAssign(shifts, staff);
+            const results = await runAutoAssign(shifts, staff, user?.businessId);
             const filled = results.filter(r => r.filledCount > 0).length;
             setAssignMsg(`✅ שיבוץ הושלם — ${filled} משמרות קיבלו כיסוי`);
         } catch (err) {
