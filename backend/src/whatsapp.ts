@@ -144,8 +144,11 @@ export const initWhatsAppSocket = async (businessId: string) => {
 
         console.log(`[WHATSAPP] Received message from ${jid}: ${incomingText}`);
 
-        // ── Thumbs-up as TEXT ────────────────────────────────────────────────
-        if (incomingText.trim() === '👍' && activeConversations[businessId]?.has(jid)) {
+        // ── Thumbs-up as TEXT or confirmation phrase ─────────────────────────
+        const CLOSE_PHRASES = ['👍', 'כן', 'סגרנו', 'יאפ', 'בדוק', 'ברור', 'אוקי', 'אוקיי', 'ok', 'okay', 'yep', 'yes'];
+        const trimmedLower = incomingText.trim().toLowerCase();
+        const isCloseConfirm = CLOSE_PHRASES.some(p => trimmedLower === p);
+        if (isCloseConfirm && activeConversations[businessId]?.has(jid)) {
             closeConversation(businessId, jid);
             await sock.sendMessage(jid, { text: 'בסדר, תודה! 🙏' });
             return;
