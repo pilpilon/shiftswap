@@ -138,7 +138,7 @@ app.post('/api/whatsapp/disconnect', async (req, res) => {
 });
 
 
-// ─── Publish Schedule: generate CSV and send ONE message per employee ─────────
+// ─── Publish Schedule: one shared CSV sent to every assigned employee ────────
 app.post('/api/whatsapp/publish-schedule', async (req, res) => {
     const { businessId, shifts, staff } = req.body as {
         businessId: string;
@@ -159,78 +159,67 @@ app.post('/api/whatsapp/publish-schedule', async (req, res) => {
         return res.status(503).json({ error: 'not_connected', message: 'WhatsApp לא מחובר. חבר את הוואטסאפ בהגדרות.' });
     }
 
-    // Build a map of staffId → { name, phone }
+    // Build lookup: staffId → { name, phone }
     const staffById: Record<string, { name: string; phone: string }> = {};
     for (const s of staff) {
         if (s.id && s.phone) staffById[s.id] = { name: s.name, phone: s.phone };
     }
 
-    // Build per-employee shift list: employeePhone → [{ date, title, role, hours }]
-    type EmployeeShift = { date: string; shiftTitle: string; role: string; hours: string };
-    const employeeSchedule: Record<string, { name: string; jid: string; assignments: EmployeeShift[] }> = {};
+    // ── Build ONE shared CSV (full schedule, all employees) ───────────────────
+    const BOM = '\uFEFF';
+    const csvHeader = 'תאריך,שעות,תפקיד,עובד';
+    const csvRows: string[] = [];
 
-    for (const shift of shifts) {
+    // Track all unique JIDs who appear in this schedule
+    const recipientJids = new Map<string, string>(); // jid → name
+
+    const sortedShifts = [...shifts].sort((a, b) => a.date.localeCompare(b.date));
+
+    for (const shift of sortedShifts) {
         const [year, month, day] = shift.date.split('-');
         const dateHe = `${day}/${month}/${year}`;
 
-        for (const req of shift.roleRequirements) {
-            for (const staffId of (req.assignedIds ?? [])) {
+        for (const roleReq of shift.roleRequirements) {
+            const hours = roleReq.startTime && roleReq.endTime
+                ? `${roleReq.startTime}-${roleReq.endTime}`
+                : shift.title;
+
+            for (const staffId of (roleReq.assignedIds ?? [])) {
                 const member = staffById[staffId];
                 if (!member) continue;
 
-                // Normalize Israeli phone → WhatsApp JID
+                csvRows.push(`${dateHe},${hours},${roleReq.role},${member.name}`);
+
                 let phone = member.phone.replace(/[^0-9]/g, '');
                 if (phone.startsWith('0')) phone = '972' + phone.slice(1);
-                const jid = `${phone}@s.whatsapp.net`;
-
-                if (!employeeSchedule[jid]) {
-                    employeeSchedule[jid] = { name: member.name, jid, assignments: [] };
-                }
-
-                const hours = req.startTime && req.endTime
-                    ? `${req.startTime}-${req.endTime}`
-                    : shift.title;
-
-                employeeSchedule[jid].assignments.push({
-                    date: dateHe,
-                    shiftTitle: shift.title,
-                    role: req.role,
-                    hours,
-                });
+                recipientJids.set(`${phone}@s.whatsapp.net`, member.name);
             }
         }
     }
 
-    // Generate and send a CSV per employee
+    const csvBuffer = Buffer.from(BOM + [csvHeader, ...csvRows].join('\n'), 'utf-8');
+
+    // ── Send the SAME CSV to every assigned employee ──────────────────────────
     let sentCount = 0;
     const errors: string[] = [];
 
-    for (const { name, jid, assignments } of Object.values(employeeSchedule)) {
-        // Sort by date
-        assignments.sort((a, b) => a.date.localeCompare(b.date));
-
-        // Build CSV string (RTL-friendly: BOM + Hebrew headers)
-        const BOM = '\uFEFF';
-        const header = 'תאריך,שעות,תפקיד';
-        const rows = assignments.map(a => `${a.date},${a.hours},${a.role}`);
-        const csvContent = BOM + [header, ...rows].join('\n');
-
-        const textMsg = `שלום ${name} 👋\nהסידור שלך לשבוע הבא מצורף.\nאם לא תוכל להגיע למשמרת כלשהי — שלח לי הודעה ואתאם החלפה.`;
+    for (const [jid, name] of recipientJids.entries()) {
+        const textMsg =
+            `שלום ${name} 👋\n` +
+            `הסידור לשבוע הבא פורסם!\n` +
+            `הקובץ המצורף מכיל את הסידור המלא לכל הצוות.\n` +
+            `אם לא תוכל להגיע למשמרת — שלח לי הודעה.`;
 
         try {
-            // Send text header first
             await sock.sendMessage(jid, { text: textMsg });
-
-            // Send CSV as a document
             await sock.sendMessage(jid, {
-                document: Buffer.from(csvContent, 'utf-8'),
+                document: csvBuffer,
                 mimetype: 'text/csv',
                 fileName: 'סידור_עבודה.csv',
                 caption: 'סידור עבודה שבועי',
             });
-
             sentCount++;
-            console.log(`[PUBLISH] Sent schedule to ${name} (${jid})`);
+            console.log(`[PUBLISH] Sent shared schedule to ${name} (${jid})`);
         } catch (err: any) {
             console.error(`[PUBLISH] Failed to send to ${name}:`, err.message);
             errors.push(`${name}: ${err.message}`);
