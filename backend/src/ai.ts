@@ -153,6 +153,8 @@ export async function processIncomingMessage(businessId: string, remoteJid: stri
                 const assignResult = await assignSwap(businessId, phone);
                 if (assignResult.success) {
                     botReply = `מעולה! שיבצתי אותך למשמרת ב-${assignResult.date}. תודה רבה על העזרה! 🙏`;
+                } else if (assignResult.error === 'self_replacement') {
+                    botReply = `לא ניתן להחליף את עצמך. אני ממשיך לחפש מחליף מתאים.`;
                 } else {
                     botReply = `תודה על הנכונות, אבל נראה שהמשמרת כבר אוישה על ידי מישהו אחר או שאין בקשות פתוחות כרגע.`;
                 }

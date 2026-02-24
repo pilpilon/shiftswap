@@ -372,9 +372,11 @@ async function initiateNegotiation(
 
         for (const candidate of candidates) {
             const jid = `${candidate.phone}@s.whatsapp.net`;
-            const offerMessage = `היי ${candidate.name}, ${originalName} נאלץ/ת לבטל את משמרת ${shiftTitle} בתאריך ${date} (${reason}).
-האם תרצה/י להחליף אותו/ה?
-(השב "כן אני אחליף" או "לא תודה")`;
+            const offerMessage =
+                `היי ${candidate.name} 👋\n` +
+                `פנתה משמרת ${role} בתאריך ${date} (${shiftTitle}).\n` +
+                `האם תוכל/י להתפנות?\n` +
+                `(השב "כן אני אחליף" או "לא תודה")`;
 
             await sock.sendMessage(jid, { text: offerMessage });
 
@@ -418,6 +420,12 @@ export async function assignSwap(
         const swapDoc = swapSnap.docs[0];
         const swapData = swapDoc.data() as SwapRequest;
 
+        // Prevent the original employee from covering their own shift
+        const normalizedCoveredPhone = coveredByPhone.replace(/[^0-9]/g, '');
+        const normalizedOriginalPhone = (swapData.originalPhone || '').replace(/[^0-9]/g, '');
+        if (normalizedCoveredPhone === normalizedOriginalPhone) {
+            return { success: false, error: 'self_replacement' };
+        }
         // Find the name of the covering employee
         let coveredByName = 'עובד מחליף';
         const staffSnap = await db.collection('staff')
