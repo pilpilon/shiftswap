@@ -44,7 +44,7 @@ const SKILL_SHORT: Record<SkillLevel, string> = {
 // Empty role row factory
 const newRow = (shiftStart = '08:00', shiftEnd = '16:00'): RoleRequirement => ({
     role: '',
-    count: 1,
+    count: 1, // always 1 — user opens new rows for more
     skillLevel: 'standard',
     startTime: shiftStart,
     endTime: shiftEnd,
@@ -103,7 +103,18 @@ export default function RosterView() {
     };
 
     const updateRow = (index: number, patch: Partial<RoleRequirement>) => {
-        setRoleRows(prev => prev.map((r, i) => i === index ? { ...r, ...patch } : r));
+        setRoleRows(prev => prev.map((r, i) => {
+            if (i !== index) return r;
+            const updated = { ...r, ...patch };
+            // Clamp role times to the shift window
+            if (updated.startTime && updated.startTime < shiftStart) updated.startTime = shiftStart;
+            if (updated.endTime && updated.endTime > shiftEnd) updated.endTime = shiftEnd;
+            if (updated.startTime && updated.endTime && updated.startTime >= updated.endTime) {
+                // Don't allow startTime to be >= endTime
+                updated.startTime = shiftStart;
+            }
+            return updated;
+        }));
     };
 
     const addRow = () => setRoleRows(prev => [...prev, newRow(shiftStart, shiftEnd)]);
@@ -460,30 +471,45 @@ export default function RosterView() {
                                                 {editingShiftId ? 'עריכת משמרת קיימת' : 'הוספת משמרת חדשה'}
                                             </h4>
 
-                                            {/* Shift hours — free time range */}
-                                            <div className="flex items-center gap-2 mb-4">
-                                                <label className="text-xs font-semibold text-slate-500 shrink-0">שעות משמרת:</label>
-                                                <input
-                                                    type="time"
-                                                    value={shiftStart}
-                                                    onChange={e => setShiftStart(e.target.value)}
-                                                    className="flex-1 border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm bg-white text-center"
-                                                />
-                                                <span className="text-slate-400 text-sm">עד</span>
-                                                <input
-                                                    type="time"
-                                                    value={shiftEnd}
-                                                    onChange={e => setShiftEnd(e.target.value)}
-                                                    className="flex-1 border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm bg-white text-center"
-                                                />
+                                            {/* Shift hours — compact two-input layout for mobile */}
+                                            <div className="mb-4">
+                                                <label className="text-xs font-semibold text-slate-500 block mb-1.5">שעות משמרת</label>
+                                                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5">
+                                                    <input
+                                                        type="time"
+                                                        value={shiftStart}
+                                                        onChange={e => {
+                                                            setShiftStart(e.target.value);
+                                                            // Clamp all role rows to new window
+                                                            setRoleRows(prev => prev.map(r => ({
+                                                                ...r,
+                                                                startTime: r.startTime && r.startTime < e.target.value ? e.target.value : r.startTime,
+                                                            })));
+                                                        }}
+                                                        className="w-full border border-slate-200 rounded-xl px-2 py-2 focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm bg-white text-center"
+                                                    />
+                                                    <span className="text-slate-400 text-xs text-center">עד</span>
+                                                    <input
+                                                        type="time"
+                                                        value={shiftEnd}
+                                                        onChange={e => {
+                                                            setShiftEnd(e.target.value);
+                                                            // Clamp all role rows to new window
+                                                            setRoleRows(prev => prev.map(r => ({
+                                                                ...r,
+                                                                endTime: r.endTime && r.endTime > e.target.value ? e.target.value : r.endTime,
+                                                            })));
+                                                        }}
+                                                        className="w-full border border-slate-200 rounded-xl px-2 py-2 focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm bg-white text-center"
+                                                    />
+                                                </div>
                                             </div>
 
                                             {/* Role requirements table */}
                                             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mb-3">
-                                                {/* Table header */}
-                                                <div className="grid grid-cols-[auto_52px_130px_110px_32px] gap-2 px-3 py-2 bg-slate-100 text-xs font-semibold text-slate-500">
+                                                {/* Table header — no count column */}
+                                                <div className="grid grid-cols-[auto_130px_110px_32px] gap-2 px-3 py-2 bg-slate-100 text-xs font-semibold text-slate-500">
                                                     <span>תפקיד</span>
-                                                    <span className="text-center">כמות</span>
                                                     <span className="text-center">שעות</span>
                                                     <span className="text-center">רמה</span>
                                                     <span />
@@ -494,7 +520,7 @@ export default function RosterView() {
                                                     {roleRows.map((row, idx) => (
                                                         <div
                                                             key={idx}
-                                                            className="grid grid-cols-[auto_52px_130px_110px_32px] gap-2 px-3 py-2 items-center"
+                                                            className="grid grid-cols-[auto_130px_110px_32px] gap-2 px-3 py-2 items-center"
                                                         >
                                                             {/* Role name */}
                                                             <div>
@@ -511,22 +537,13 @@ export default function RosterView() {
                                                                 </select>
                                                             </div>
 
-                                                            {/* Count */}
-                                                            <input
-                                                                type="number"
-                                                                required
-                                                                min={1}
-                                                                max={50}
-                                                                value={row.count}
-                                                                onChange={e => updateRow(idx, { count: Number(e.target.value) })}
-                                                                className="w-full border border-slate-200 rounded-lg px-1 py-1.5 text-sm text-center focus:ring-2 focus:ring-brand-blue focus:outline-none"
-                                                            />
-
-                                                            {/* Per-role time range */}
+                                                            {/* Per-role time range — clamped to shift window */}
                                                             <div className="flex items-center gap-1">
                                                                 <input
                                                                     type="time"
                                                                     value={row.startTime ?? shiftStart}
+                                                                    min={shiftStart}
+                                                                    max={shiftEnd}
                                                                     onChange={e => updateRow(idx, { startTime: e.target.value })}
                                                                     className="w-full border border-slate-200 rounded-lg px-1 py-1.5 text-xs text-center focus:ring-2 focus:ring-brand-blue focus:outline-none"
                                                                 />
@@ -534,6 +551,8 @@ export default function RosterView() {
                                                                 <input
                                                                     type="time"
                                                                     value={row.endTime ?? shiftEnd}
+                                                                    min={shiftStart}
+                                                                    max={shiftEnd}
                                                                     onChange={e => updateRow(idx, { endTime: e.target.value })}
                                                                     className="w-full border border-slate-200 rounded-lg px-1 py-1.5 text-xs text-center focus:ring-2 focus:ring-brand-blue focus:outline-none"
                                                                 />
