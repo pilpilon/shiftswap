@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, Users, MessageSquareText, Settings, LogOut, Bell, CheckCircle2, ShieldAlert, Save, Zap, Crown } from 'lucide-react';
-import { NotificationsTray, mockNotifications } from './Notifications';
+import { NotificationsTray } from './Notifications';
+import { useNotifications } from '../hooks/useNotifications';
 import UpgradeModal from './UpgradeModal';
 import { useAuth } from '../context/AuthContext';
 import StaffView from './views/StaffView';
 import RosterView from './views/RosterView';
 import NegotiationsView from './views/NegotiationsView';
+import { useShifts } from '../hooks/useShifts';
+
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -15,15 +18,25 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ onLogout }: DashboardProps) {
+    const { user } = useAuth();
     const [activeTab, setActiveTab] = useState('roster');
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
-    const [notifications, setNotifications] = useState(mockNotifications);
+    const [readIds, setReadIds] = useState<Set<string>>(new Set());
 
+    // Real notifications derived from live Firestore shifts
+    const { shifts } = useShifts(user?.businessId);
+    const rawNotifications = useNotifications(shifts);
+
+    // Allow the user to mark individual notification IDs as read
+    const notifications = rawNotifications.map(n => ({
+        ...n,
+        read: n.read || readIds.has(n.id),
+    }));
     const unreadCount = notifications.filter(n => !n.read).length;
 
     const handleMarkAllRead = () => {
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+        setReadIds(new Set(notifications.map(n => n.id)));
     };
 
     const tabs = [
