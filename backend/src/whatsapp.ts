@@ -186,7 +186,7 @@ export const initWhatsAppSocket = async (businessId: string) => {
             }
 
             const { processIncomingMessage } = await import('./ai');
-            const aiResponse = await processIncomingMessage(businessId, jid, incomingText);
+            const aiResponse = await processIncomingMessage(businessId, jid, incomingText, msg.pushName ?? undefined);
 
             await sock.sendMessage(jid, { text: aiResponse });
             console.log(`[WHATSAPP] AI replied to ${jid}`);

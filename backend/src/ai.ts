@@ -2,7 +2,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 
 const ai = new GoogleGenAI({});
 
-import { getBusinessRules, getOpenShifts, saveNegotiationLog, saveAvailability, getCurrentWeekKey } from './firebase';
+import { getBusinessRules, getOpenShifts, saveNegotiationLog, saveAvailability, getCurrentWeekKey, getStaffPhoneByName } from './firebase';
 
 // Hebrew day names for availability parsing
 const HEBREW_DAYS: Record<string, string> = {
@@ -29,7 +29,12 @@ function isAvailabilityMessage(text: string): boolean {
     return (hasAvailabilityKeyword && days.length > 0) || days.length >= 2;
 }
 
-export async function processIncomingMessage(businessId: string, remoteJid: string, incomingText: string): Promise<string> {
+export async function processIncomingMessage(
+    businessId: string,
+    remoteJid: string,
+    incomingText: string,
+    senderName?: string   // WhatsApp pushName — used to resolve @lid to real phone
+): Promise<string> {
 
     // Log the incoming message from the employee
     await saveNegotiationLog(businessId, remoteJid, incomingText, 'employee');
@@ -37,9 +42,20 @@ export async function processIncomingMessage(businessId: string, remoteJid: stri
     // ── Intent: availability submission ──────────────────────────────────────
     if (isAvailabilityMessage(incomingText)) {
         const days = extractAvailabilityDays(incomingText);
-        const phone = remoteJid.split('@')[0]; // normalized phone is the JID prefix
         const weekKey = getCurrentWeekKey();
 
+        // Resolve real phone: @lid JIDs carry an internal WhatsApp ID, not the phone number.
+        // Use the sender's pushName to look up the real normalized phone in Firestore.
+        let phone = remoteJid.split('@')[0];
+        if (remoteJid.endsWith('@lid') && senderName) {
+            const resolved = await getStaffPhoneByName(businessId, senderName);
+            if (resolved) {
+                phone = resolved;
+                console.log(`[AI] Resolved @lid ${remoteJid} → phone ${phone} (via name "${senderName}")`);
+            } else {
+                console.warn(`[AI] Could not resolve @lid ${remoteJid} by name "${senderName}" — saving with LID fallback`);
+            }
+        }
         try {
             await saveAvailability(businessId, phone, weekKey, days);
             const daysStr = days.join(', ');
@@ -153,7 +169,7 @@ export async function processIncomingMessage(businessId: string, remoteJid: stri
             if (call.name === 'registerShiftCancellation') {
                 const args = call.args as { reason: string, date: string };
                 console.log(`[AI] Shift cancellation detected: reason=${args.reason}, date=${args.date}`);
-                await registerSwapRequest(businessId, phone, args.date, args.reason);
+                await registerSwapRequest(businessId, phone, args.date, args.reason, senderName);
                 botReply = `הבנתי, רשמתי שאת/ה לא יכול/ה להגיע ב-${args.date} בגלל: ${args.reason}. אני מחפש מחליף כרגע ואעדכן את המנהל. תרגיש/י טוב!`;
             } else if (call.name === 'acceptShiftSwap') {
                 console.log(`[AI] Swap acceptance detected from ${phone}`);

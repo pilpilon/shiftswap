@@ -165,6 +165,26 @@ export async function getAvailability(
     return result;
 }
 
+/** Given a display name, return the normalized phone (972XXXXXXXXX) of the matching staff member, or null if not found */
+export async function getStaffPhoneByName(businessId: string, name: string): Promise<string | null> {
+    if (!db || !name) return null;
+    try {
+        const snap = await db.collection('staff').where('businessId', '==', businessId).get();
+        for (const doc of snap.docs) {
+            const data = doc.data();
+            if (data.name && data.phone &&
+                data.name.trim().toLowerCase() === name.trim().toLowerCase()) {
+                let p = data.phone.replace(/[^0-9]/g, '');
+                if (p.startsWith('0')) p = '972' + p.slice(1);
+                return p;
+            }
+        }
+    } catch (err) {
+        console.error('[FIREBASE] getStaffPhoneByName error:', err);
+    }
+    return null;
+}
+
 /** Returns phone numbers of staff who have NOT submitted availability this week */
 export async function getStaffWhoHaventSubmitted(
     businessId: string,
@@ -261,7 +281,8 @@ export async function registerSwapRequest(
     businessId: string,
     phone: string,
     dateString: string,
-    reason: string
+    reason: string,
+    senderName?: string   // fallback display name for @lid senders
 ): Promise<void> {
     if (!db) return;
 
@@ -288,7 +309,7 @@ export async function registerSwapRequest(
 
     try {
         const staffSnap = await db.collection('staff').where('businessId', '==', businessId).get();
-        let employeeName = 'עובד לא מזוהה';
+        let employeeName = senderName || 'עובד לא מזוהה'; // use pushName as fallback for @lid
         for (const doc of staffSnap.docs) {
             const data = doc.data();
             if (data.phone) {
