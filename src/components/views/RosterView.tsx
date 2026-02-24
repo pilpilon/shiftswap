@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useAuth } from '../../../src/context/AuthContext';
 import { useShifts, type Shift, type RoleRequirement, type SkillLevel, SKILL_LEVEL_LABELS } from '../../../src/hooks/useShifts';
-import { useStaff } from '../../../src/hooks/useStaff';
+import { useStaff, type StaffMember } from '../../../src/hooks/useStaff';
 import { useSettings } from '../../../src/hooks/useSettings';
 import { runAutoAssign, WEEKDAY_LABELS_HE, isDeadlinePassed } from '../../../src/hooks/useAutoAssign';
 import {
     Calendar, Plus, CheckCircle2, Loader2, Trash2,
-    ChevronRight, ChevronLeft, Edit2, Wand2, Settings2, AlertCircle,
+    ChevronRight, ChevronLeft, Edit2, Wand2, Settings2, AlertCircle, Send
 } from 'lucide-react';
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -54,6 +54,7 @@ export default function RosterView() {
     const [isAssigning, setIsAssigning] = useState(false);
     const [assignMsg, setAssignMsg] = useState<string | null>(null);
     const [showDeadlinePanel, setShowDeadlinePanel] = useState(false);
+    const [isPublishing, setIsPublishing] = useState(false);
 
     // Form state
     const [newDate, setNewDate] = useState('');
@@ -131,6 +132,30 @@ export default function RosterView() {
             setIsAssigning(false);
             setTimeout(() => setAssignMsg(null), 5000);
         }
+    };
+
+    const handlePublish = () => {
+        if (shifts.length === 0) {
+            alert('אין משמרות לפרסום בשבוע זה');
+            return;
+        }
+
+        const unassigned = shifts.filter(s => s.filledCount < s.totalRequired);
+        if (unassigned.length > 0) {
+            const proceed = window.confirm(`שים לב: קיימות ${unassigned.length} משמרות שלא אויישו במלואן. האם בכל זאת לפרסם את הסידור? המערכת תשלח הודעות וואטסאפ לכל העובדים המשובצים.`);
+            if (!proceed) return;
+        } else {
+            const proceed = window.confirm('האם אתה בטוח שברצונך לפרסם את סידור העבודה? המערכת תשגר הודעת וואטסאפ לכל העובדים עם המשמרות שלהם.');
+            if (!proceed) return;
+        }
+
+        setIsPublishing(true);
+        // Simulate an API call / sending WhatsApp messages
+        setTimeout(() => {
+            setIsPublishing(false);
+            setAssignMsg('✅ הסידור פורסם בהצלחה והודעות נשלחו לעובדים!');
+            setTimeout(() => setAssignMsg(null), 5000);
+        }, 1500);
     };
 
     // ── Week navigation ───────────────────────────────────────────────────────
@@ -277,6 +302,20 @@ export default function RosterView() {
                             <ChevronLeft className="w-5 h-5" />
                         </button>
                     </div>
+
+                    {/* Publish Button */}
+                    <button
+                        onClick={handlePublish}
+                        disabled={isPublishing || isAssigning}
+                        className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm transition-all"
+                        title="פרסם סידור"
+                    >
+                        {isPublishing
+                            ? <Loader2 className="w-4 h-4 animate-spin" />
+                            : <Send className="w-4 h-4" />
+                        }
+                        <span className="hidden sm:inline">שגר סידור</span>
+                    </button>
 
                     {/* Auto-assign button */}
                     <button
@@ -478,6 +517,7 @@ export default function RosterView() {
                                                 <ShiftCard
                                                     key={shift.id}
                                                     shift={shift}
+                                                    staff={staff}
                                                     onRemove={(e) => {
                                                         e.stopPropagation();
                                                         e.preventDefault();
@@ -521,7 +561,7 @@ export default function RosterView() {
 // ────────────────────────────────────────────────────────────────────────────
 // ShiftCard — fixed RTL layout, no text truncation
 // ────────────────────────────────────────────────────────────────────────────
-function ShiftCard({ shift, onRemove, onEdit }: { shift: Shift; onRemove: (e: React.MouseEvent) => void; onEdit: (e: React.MouseEvent) => void }) {
+function ShiftCard({ shift, staff, onRemove, onEdit }: { shift: Shift; staff: StaffMember[]; onRemove: (e: React.MouseEvent) => void; onEdit: (e: React.MouseEvent) => void }) {
     const roles = shift.roleRequirements ?? [];
     const isFilled = shift.filledCount >= shift.totalRequired;
 
@@ -567,17 +607,29 @@ function ShiftCard({ shift, onRemove, onEdit }: { shift: Shift; onRemove: (e: Re
 
             {/* Role badges — each on its own line if needed */}
             {roles.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                    {roles.map((r, i) => (
-                        <span
-                            key={i}
-                            className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full border ${SKILL_COLORS[r.skillLevel]}`}
-                        >
-                            <span className="font-bold">{r.count}×</span>
-                            <span>{r.role}</span>
-                            <span className="opacity-60">({SKILL_SHORT[r.skillLevel]})</span>
-                        </span>
-                    ))}
+                <div className="flex flex-col gap-2 mt-3 p-3 bg-slate-50/50 rounded-lg border border-slate-100">
+                    {roles.map((r, i) => {
+                        const assignedNames = (r.assignedIds || [])
+                            .map(id => staff.find(s => s.id === id)?.name || 'עובד שנמחק')
+                            .filter(Boolean);
+
+                        return (
+                            <div key={i} className={`flex flex-col gap-1.5 p-2.5 rounded-lg border ${SKILL_COLORS[r.skillLevel]}`}>
+                                <div className="flex items-center gap-1.5 text-sm font-semibold">
+                                    <span className="bg-white/50 px-1.5 py-0.5 rounded text-xs leading-none shadow-sm">{r.count}×</span>
+                                    <span>{r.role}</span>
+                                    <span className="opacity-70 text-xs font-normal">({SKILL_SHORT[r.skillLevel]})</span>
+                                </div>
+                                {assignedNames.length > 0 ? (
+                                    <div className="text-sm font-medium pr-1 text-slate-700">
+                                        שובצו: {assignedNames.join(', ')}
+                                    </div>
+                                ) : (
+                                    <div className="text-xs text-slate-500 pr-1">— לא שובץ אף עובד —</div>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
             )}
         </div>

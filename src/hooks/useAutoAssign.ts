@@ -28,14 +28,18 @@ export async function runAutoAssign(
     const results: { shiftId: string; filledCount: number }[] = [];
 
     for (const shift of shifts) {
-        const filledCount = computeFilledCount(shift.roleRequirements, staff);
+        // Clear previous assignments to avoid duplicate accumulation if auto-assign is clicked multiple times
+        const cleanRequirements = shift.roleRequirements.map(req => ({ ...req, assignedIds: [] }));
+
+        const { totalFilled, updatedRequirements } = computeFilledCount(cleanRequirements, staff);
 
         // Only update if value changed to avoid unnecessary writes
-        if (filledCount !== shift.filledCount) {
-            await updateDoc(doc(db, 'shifts', shift.id), { filledCount });
-        }
+        await updateDoc(doc(db, 'shifts', shift.id), {
+            filledCount: totalFilled,
+            roleRequirements: updatedRequirements
+        });
 
-        results.push({ shiftId: shift.id, filledCount });
+        results.push({ shiftId: shift.id, filledCount: totalFilled });
     }
 
     return results;
@@ -48,17 +52,24 @@ export async function runAutoAssign(
 function computeFilledCount(
     requirements: RoleRequirement[],
     staff: StaffMember[]
-): number {
+): { totalFilled: number, updatedRequirements: RoleRequirement[] } {
     // Build a working copy of available staff (each can be used once per shift)
     const available = [...staff];
     let totalFilled = 0;
+    const updatedRequirements: RoleRequirement[] = [];
 
     for (const req of requirements) {
         let needed = req.count;
         const requiredRank = SKILL_RANK[req.skillLevel] ?? 1;
 
+        const newReq = { ...req, assignedIds: req.assignedIds ? [...req.assignedIds] : [] };
+
         for (let i = available.length - 1; i >= 0 && needed > 0; i--) {
             const member = available[i];
+
+            // Skip if already explicitly assigned to this shift (to prevent double-booking if running auto-assign over existing assignments)
+            // For now, we simple just clear existing assignments in the main run loop, so this is just extra safety.
+
             const memberRank = SKILL_RANK[member.skillLevel] ?? 1;
 
             // Check role match and skill level (higher rank satisfies lower requirement)
@@ -68,13 +79,16 @@ function computeFilledCount(
             if (roleMatch && memberRank >= requiredRank) {
                 totalFilled++;
                 needed--;
+                // Track assigned ID
+                newReq.assignedIds.push(member.id);
                 // Remove from available pool so the same person isn't double-assigned
                 available.splice(i, 1);
             }
         }
+        updatedRequirements.push(newReq);
     }
 
-    return totalFilled;
+    return { totalFilled, updatedRequirements };
 }
 
 /**

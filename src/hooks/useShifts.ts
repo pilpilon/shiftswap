@@ -11,11 +11,11 @@ export const SKILL_LEVEL_LABELS: Record<SkillLevel, string> = {
     junior: '◎ מתחיל',
 };
 
-// A role requirement row within a shift (e.g., "2 waiters - star level")
 export interface RoleRequirement {
     role: string;       // e.g., "מלצר", "טבח", "מארחת"
     count: number;      // total needed for this role
     skillLevel: SkillLevel; // required skill level
+    assignedIds?: string[]; // IDs of staff members assigned to this role
 }
 
 export interface Shift {
