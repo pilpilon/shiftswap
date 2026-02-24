@@ -44,6 +44,32 @@ export async function processIncomingMessage(businessId: string, remoteJid: stri
         }
     }
 
+    // ── Intent: Schedule Query ───────────────────────────────────────────────
+    const scheduleKeywords = ['סידור', 'לו"ז', 'מתי אני עובד', 'משמרות של', 'שבוע הבא'];
+    const isScheduleQuery = scheduleKeywords.some(kw => incomingText.includes(kw)) && incomingText.includes('?');
+
+    if (isScheduleQuery) {
+        const phone = remoteJid.split('@')[0];
+        const weekKey = getCurrentWeekKey(); // Query current week
+        try {
+            const { getPublishedSchedule } = await import('./firebase');
+            const shifts = await getPublishedSchedule(businessId, weekKey, phone);
+
+            let reply: string;
+            if (!shifts || shifts.length === 0) {
+                reply = 'לא מצאתי משמרות שפורסמו עבורך לשבוע זה.';
+            } else {
+                const shiftLines = shifts.map(s => `- ${s.date}: ${s.role} (${s.hours})`).join('\n');
+                reply = `הסידור שלך לשבוע הקרוב:\n${shiftLines}`;
+            }
+
+            await saveNegotiationLog(businessId, remoteJid, reply, 'ai');
+            return reply;
+        } catch (err) {
+            console.error('[AI] Failed to fetch schedule:', err);
+        }
+    }
+
     // ── Default: conversational AI ────────────────────────────────────────────
     const rulesConfig = await getBusinessRules(businessId);
     const openShifts = await getOpenShifts(businessId);

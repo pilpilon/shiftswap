@@ -173,11 +173,22 @@ app.post('/api/whatsapp/publish-schedule', async (req, res) => {
     // Track all unique JIDs who appear in this schedule
     const recipientJids = new Map<string, string>(); // jid → name
 
+    // For schedule querying
+    const scheduleMap: Record<string, any[]> = {}; // normalizedPhone -> shifts
+    let weekKeyFromSchedule = '';
+
     const sortedShifts = [...shifts].sort((a, b) => a.date.localeCompare(b.date));
 
     for (const shift of sortedShifts) {
         const [year, month, day] = shift.date.split('-');
         const dateHe = `${day}/${month}/${year}`;
+        if (!weekKeyFromSchedule) {
+            // Rough week key based on first shift's date loosely mapped to currentWeekKey logic
+            const d = new Date(`${year}-${month}-${day}T00:00:00Z`);
+            const startOfYear = new Date(d.getFullYear(), 0, 1);
+            const weekNo = Math.ceil((((d.getTime() - startOfYear.getTime()) / 86400000) + startOfYear.getDay() + 1) / 7);
+            weekKeyFromSchedule = `${d.getFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+        }
 
         for (const roleReq of shift.roleRequirements) {
             const hours = roleReq.startTime && roleReq.endTime
@@ -192,12 +203,22 @@ app.post('/api/whatsapp/publish-schedule', async (req, res) => {
 
                 let phone = member.phone.replace(/[^0-9]/g, '');
                 if (phone.startsWith('0')) phone = '972' + phone.slice(1);
+
                 recipientJids.set(`${phone}@s.whatsapp.net`, member.name);
+
+                if (!scheduleMap[phone]) scheduleMap[phone] = [];
+                scheduleMap[phone].push({ date: dateHe, hours, role: roleReq.role });
             }
         }
     }
 
     const csvBuffer = Buffer.from(BOM + [csvHeader, ...csvRows].join('\n'), 'utf-8');
+
+    // ── Save Published Schedule to Firestore ──────────────────────────────────
+    if (weekKeyFromSchedule && Object.keys(scheduleMap).length > 0) {
+        const { savePublishedSchedule } = await import('./firebase');
+        await savePublishedSchedule(businessId, weekKeyFromSchedule, scheduleMap);
+    }
 
     // ── Send the SAME CSV to every assigned employee ──────────────────────────
     let sentCount = 0;

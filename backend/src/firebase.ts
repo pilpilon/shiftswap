@@ -190,3 +190,53 @@ export async function getStaffWhoHaventSubmitted(
     return missing;
 }
 
+// ─── Published Schedule ───────────────────────────────────────────────────
+
+export interface EmployeePublishedShift {
+    date: string;
+    hours: string;
+    role: string;
+}
+
+/** Save a compiled schedule so the AI can answer "what is my schedule?" */
+export async function savePublishedSchedule(
+    businessId: string,
+    weekKey: string,
+    scheduleMap: Record<string, EmployeePublishedShift[]> // normalizedPhone -> shifts
+): Promise<void> {
+    if (!db) return;
+    try {
+        await db
+            .collection('published_schedules')
+            .doc(businessId)
+            .collection('weeks')
+            .doc(weekKey)
+            .set({ schedule: scheduleMap, updatedAt: new Date().toISOString() });
+    } catch (err) {
+        console.error("Failed to save published schedule:", err);
+    }
+}
+
+/** Retrieve an employee's published shifts */
+export async function getPublishedSchedule(
+    businessId: string,
+    weekKey: string,
+    phone: string // normalized phone
+): Promise<EmployeePublishedShift[] | null> {
+    if (!db) return null;
+    try {
+        const doc = await db
+            .collection('published_schedules')
+            .doc(businessId)
+            .collection('weeks')
+            .doc(weekKey)
+            .get();
+        if (doc.exists) {
+            const data = doc.data();
+            return data?.schedule?.[phone] || [];
+        }
+    } catch (err) {
+        console.error("Failed to get published schedule:", err);
+    }
+    return null;
+}
