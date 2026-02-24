@@ -30,6 +30,10 @@ export const initWhatsAppSocket = async (businessId: string) => {
         version,
         auth: state,
         printQRInTerminal: false,
+        // Required for Baileys to accept message retries on cloud environments
+        getMessage: async () => {
+            return { conversation: 'placeholder' };
+        },
     });
 
     pendingSockets[businessId] = sock;
@@ -41,7 +45,6 @@ export const initWhatsAppSocket = async (businessId: string) => {
 
         if (qr) {
             console.log(`[WHATSAPP] Generated QR for ${businessId}`);
-            // Generate Data URI from QR
             try {
                 const qrDataUri = await QRCode.toDataURL(qr);
                 qrCodes[businessId] = qrDataUri;
@@ -62,55 +65,57 @@ export const initWhatsAppSocket = async (businessId: string) => {
                 initWhatsAppSocket(businessId);
             } else {
                 console.log(`[WHATSAPP] User logged out natively. Deleting session ${businessId}`);
-                // If logged out, we should clear the session dir
                 fs.rmSync(sessionDir, { recursive: true, force: true });
             }
         } else if (connection === 'open') {
             console.log(`[WHATSAPP] Connected! Socket ready for ${businessId}`);
             activeSockets[businessId] = sock;
             delete pendingSockets[businessId];
-            delete qrCodes[businessId]; // Clear the QR once connected
+            delete qrCodes[businessId];
         }
     });
 
     sock.ev.on('messages.upsert', async (m) => {
-        // console.log(`[WHATSAPP MSG - ${businessId}]`, JSON.stringify(m, undefined, 2));
-
-        // This is where we will route the message to the AI handler
-        // AI Webhook Handler logic will go here
+        console.log(`[WHATSAPP MSG] type=${m.type} count=${m.messages.length}`);
 
         const msg = m.messages[0];
-        if (!msg.key.fromMe && m.type === 'notify' && msg.message) {
-            // Ignore group messages to prevent embarrassing automatic replies in groups
-            if (msg.key.remoteJid?.endsWith('@g.us')) {
+
+        // Ignore messages from self, status broadcasts, and groups
+        if (msg.key.fromMe) return;
+        if (msg.key.remoteJid === 'status@broadcast') return;
+        if (msg.key.remoteJid?.endsWith('@g.us')) return;
+
+        // Accept both 'notify' (real-time) and 'append' (cloud replay) message types
+        if (m.type !== 'notify' && m.type !== 'append') {
+            console.log(`[WHATSAPP] Ignoring message type: ${m.type}`);
+            return;
+        }
+
+        const incomingText = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
+
+        if (!incomingText) {
+            console.log(`[WHATSAPP] No text content in message from ${msg.key.remoteJid}`);
+            return;
+        }
+
+        console.log(`[WHATSAPP] Received message from ${msg.key.remoteJid}: ${incomingText}`);
+
+        try {
+            const { isEmployeePhone } = await import('./firebase');
+            const isEmployee = await isEmployeePhone(businessId, msg.key.remoteJid!);
+
+            if (!isEmployee) {
+                console.log(`[WHATSAPP] Ignoring message from unauthorized number: ${msg.key.remoteJid}`);
                 return;
             }
 
-            const incomingText = msg.message.conversation || msg.message.extendedTextMessage?.text;
+            const { processIncomingMessage } = await import('./ai');
+            const aiResponse = await processIncomingMessage(businessId, msg.key.remoteJid!, incomingText);
 
-            if (incomingText) {
-                console.log(`Received message from ${msg.key.remoteJid}: `, incomingText);
-
-                try {
-                    // Check if sender is an accepted employee
-                    const { isEmployeePhone } = await import('./firebase');
-                    const isEmployee = await isEmployeePhone(businessId, msg.key.remoteJid!);
-
-                    if (!isEmployee) {
-                        console.log(`[WHATSAPP] Ignoring message from unauthorized number: ${msg.key.remoteJid}`);
-                        return; // Ignore
-                    }
-
-                    // Route to AI
-                    const { processIncomingMessage } = await import('./ai');
-                    const aiResponse = await processIncomingMessage(businessId, msg.key.remoteJid!, incomingText);
-
-                    // Reply
-                    await sock.sendMessage(msg.key.remoteJid!, { text: aiResponse });
-                } catch (err) {
-                    console.error("Error processing AI response:", err);
-                }
-            }
+            await sock.sendMessage(msg.key.remoteJid!, { text: aiResponse });
+            console.log(`[WHATSAPP] AI replied to ${msg.key.remoteJid}`);
+        } catch (err) {
+            console.error("[WHATSAPP] Error processing AI response:", err);
         }
     });
 
