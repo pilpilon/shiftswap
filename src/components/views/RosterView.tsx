@@ -55,6 +55,8 @@ export default function RosterView() {
     const [assignMsg, setAssignMsg] = useState<string | null>(null);
     const [showDeadlinePanel, setShowDeadlinePanel] = useState(false);
     const [isPublishing, setIsPublishing] = useState(false);
+    const [showPublishConfirm, setShowPublishConfirm] = useState(false);
+    const [publishUnassignedCount, setPublishUnassignedCount] = useState(0);
 
     // Form state
     const [newDate, setNewDate] = useState('');
@@ -136,19 +138,17 @@ export default function RosterView() {
 
     const handlePublish = () => {
         if (shifts.length === 0) {
-            alert('אין משמרות לפרסום בשבוע זה');
+            setAssignMsg('אין משמרות לפרסום בשבוע זה');
+            setTimeout(() => setAssignMsg(null), 3000);
             return;
         }
-
         const unassigned = shifts.filter(s => s.filledCount < s.totalRequired);
-        if (unassigned.length > 0) {
-            const proceed = window.confirm(`שים לב: קיימות ${unassigned.length} משמרות שלא אויישו במלואן. האם בכל זאת לפרסם את הסידור? המערכת תשלח הודעות וואטסאפ לכל העובדים המשובצים.`);
-            if (!proceed) return;
-        } else {
-            const proceed = window.confirm('האם אתה בטוח שברצונך לפרסם את סידור העבודה? המערכת תשגר הודעת וואטסאפ לכל העובדים עם המשמרות שלהם.');
-            if (!proceed) return;
-        }
+        setPublishUnassignedCount(unassigned.length);
+        setShowPublishConfirm(true);
+    };
 
+    const confirmPublish = () => {
+        setShowPublishConfirm(false);
         setIsPublishing(true);
         // Simulate an API call / sending WhatsApp messages
         setTimeout(() => {
@@ -265,19 +265,49 @@ export default function RosterView() {
                         שיבוץ אוטומטי
                     </button>
 
-                    {/* Publish Button */}
-                    <button
-                        onClick={handlePublish}
-                        disabled={isPublishing || isAssigning}
-                        className="flex-1 sm:flex-none justify-center flex items-center gap-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all"
-                        title="פרסם סידור"
-                    >
-                        {isPublishing
-                            ? <Loader2 className="w-4 h-4 animate-spin" />
-                            : <Send className="w-4 h-4" />
-                        }
-                        <span>שגר סידור</span>
-                    </button>
+                    {/* Publish Button / Inline Confirm */}
+                    {showPublishConfirm ? (
+                        <div className="flex-1 flex flex-col gap-2 bg-red-50 border border-red-200 rounded-xl p-3 animate-in fade-in zoom-in duration-200">
+                            {publishUnassignedCount > 0 ? (
+                                <p className="text-xs font-bold text-red-700">
+                                    ⚠️ {publishUnassignedCount} משמרות לא מאויישו! לפרסם בכל זאת?
+                                </p>
+                            ) : (
+                                <p className="text-xs font-bold text-red-700">
+                                    לשגר וואטסאפ לכל העובדים?
+                                </p>
+                            )}
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={confirmPublish}
+                                    className="flex-1 text-sm bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-700 font-bold transition"
+                                >
+                                    כן, שגר!
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPublishConfirm(false)}
+                                    className="flex-1 text-sm bg-white text-slate-600 border border-slate-300 px-3 py-2 rounded-lg hover:bg-slate-50 font-medium transition"
+                                >
+                                    בטל
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={handlePublish}
+                            disabled={isPublishing || isAssigning}
+                            className="flex-1 sm:flex-none justify-center flex items-center gap-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all"
+                            title="פרסם סידור"
+                        >
+                            {isPublishing
+                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                : <Send className="w-4 h-4" />
+                            }
+                            <span>שגר סידור</span>
+                        </button>
+                    )}
                 </div>
 
                 {/* ── Deadline panel ──────────────────────────────────────── */}
