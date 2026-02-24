@@ -8,16 +8,59 @@ export const activeSockets: Record<string, any> = {};
 export const pendingSockets: Record<string, any> = {};
 export const qrCodes: Record<string, string> = {};
 
-// Track JIDs in an active conversation with the bot.
-// Value is the pending expiry timer so it can be reset on each reply (sliding window).
-// Window: 5 minutes of inactivity closes the conversation.
-const CONVERSATION_TTL_MS = 5 * 60 * 1000;
-const activeConversations: Record<string, Map<string, ReturnType<typeof setTimeout>>> = {};
+// ── Conversation tracking ────────────────────────────────────────────────────
+// Each active conversation stores two timers:
+//  - expiryTimer : hard close after 5 min of total inactivity (sliding window)
+//  - nudgeTimer  : send "סגרנו? 👍" 60 seconds after the bot's last reply
+const CONVERSATION_TTL_MS = 5 * 60 * 1000;  // 5 min
+const NUDGE_DELAY_MS = 1 * 60 * 1000;  // 1 min
 
+interface ConvState {
+    expiryTimer: ReturnType<typeof setTimeout>;
+    nudgeTimer: ReturnType<typeof setTimeout> | null;
+}
+const activeConversations: Record<string, Map<string, ConvState>> = {};
+
+/** Completely remove a JID from tracking and cancel all its timers. */
+function closeConversation(businessId: string, jid: string) {
+    const state = activeConversations[businessId]?.get(jid);
+    if (!state) return;
+    clearTimeout(state.expiryTimer);
+    if (state.nudgeTimer) clearTimeout(state.nudgeTimer);
+    activeConversations[businessId].delete(jid);
+    console.log(`[WHATSAPP] Conversation closed: ${jid}`);
+}
+
+/** Open/refresh a conversation after the bot sends a reply. */
+function refreshConversation(businessId: string, jid: string, sock: any) {
+    // Cancel any existing timers first
+    closeConversation(businessId, jid);
+
+    if (!activeConversations[businessId]) {
+        activeConversations[businessId] = new Map();
+    }
+
+    // 1-min nudge: "סגרנו? 👍"
+    const nudgeTimer = setTimeout(async () => {
+        try {
+            await sock.sendMessage(jid, { text: 'סגרנו? 👍' });
+            console.log(`[WHATSAPP] Nudge sent to ${jid}`);
+        } catch { /* socket may be gone */ }
+    }, NUDGE_DELAY_MS);
+
+    // 5-min hard expiry (sliding, resets on every bot reply)
+    const expiryTimer = setTimeout(() => {
+        closeConversation(businessId, jid);
+        console.log(`[WHATSAPP] Conversation expired (idle 5m): ${jid}`);
+    }, CONVERSATION_TTL_MS);
+
+    activeConversations[businessId].set(jid, { expiryTimer, nudgeTimer });
+}
+
+// ── Socket init ──────────────────────────────────────────────────────────────
 export const initWhatsAppSocket = async (businessId: string) => {
     console.log(`[WHATSAPP] Starting socket for business ${businessId}`);
 
-    // Load credentials from Firestore (persists across Render restarts/deploys)
     const { state, saveCreds } = await useFirestoreAuthState(businessId);
     const { version } = await fetchLatestBaileysVersion();
 
@@ -25,15 +68,12 @@ export const initWhatsAppSocket = async (businessId: string) => {
         version,
         auth: state,
         printQRInTerminal: false,
-        // Required for Baileys to accept message retries on cloud environments
         getMessage: async () => {
             return { conversation: 'placeholder' };
         },
     });
 
     pendingSockets[businessId] = sock;
-
-    // Persist credentials whenever they change
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', async (update) => {
@@ -59,10 +99,8 @@ export const initWhatsAppSocket = async (businessId: string) => {
             delete qrCodes[businessId];
 
             if (shouldReconnect) {
-                // Wait briefly before reconnecting to avoid tight loops on e.g. 500 errors
                 setTimeout(() => initWhatsAppSocket(businessId), 3000);
             } else {
-                // User explicitly logged out from their phone — clear Firestore session
                 console.log(`[WHATSAPP] User logged out natively. Deleting Firestore session for ${businessId}`);
                 await deleteFirestoreAuthState(businessId);
             }
@@ -79,29 +117,41 @@ export const initWhatsAppSocket = async (businessId: string) => {
 
         const msg = m.messages[0];
 
-        // Ignore messages from self, status broadcasts, and groups
         if (msg.key.fromMe) return;
         if (msg.key.remoteJid === 'status@broadcast') return;
         if (msg.key.remoteJid?.endsWith('@g.us')) return;
-
-        // Accept both 'notify' (real-time) and 'append' (cloud replay) message types
         if (m.type !== 'notify' && m.type !== 'append') {
             console.log(`[WHATSAPP] Ignoring message type: ${m.type}`);
             return;
         }
 
-        const incomingText = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
+        const jid = msg.key.remoteJid!;
 
-        if (!incomingText) {
-            console.log(`[WHATSAPP] No text content in message from ${msg.key.remoteJid}`);
+        // ── Thumbs-up REACTION ────────────────────────────────────────────────
+        // Employee reacted 👍 to any message → treat as "confirmed/closed"
+        const reaction = msg.message?.reactionMessage?.text;
+        if (reaction === '👍' && activeConversations[businessId]?.has(jid)) {
+            closeConversation(businessId, jid);
+            await sock.sendMessage(jid, { text: 'בסדר, תודה! 🙏' });
             return;
         }
 
-        console.log(`[WHATSAPP] Received message from ${msg.key.remoteJid}: ${incomingText}`);
+        const incomingText = msg.message?.conversation || msg.message?.extendedTextMessage?.text;
+        if (!incomingText) {
+            console.log(`[WHATSAPP] No text content in message from ${jid}`);
+            return;
+        }
 
-        // Keyword filter — only invoke AI for shift-related messages.
-        // EXCEPTION: if this JID is already mid-conversation (bot already replied),
-        // bypass the filter to allow natural follow-up replies like "כן כי אני חולה".
+        console.log(`[WHATSAPP] Received message from ${jid}: ${incomingText}`);
+
+        // ── Thumbs-up as TEXT ────────────────────────────────────────────────
+        if (incomingText.trim() === '👍' && activeConversations[businessId]?.has(jid)) {
+            closeConversation(businessId, jid);
+            await sock.sendMessage(jid, { text: 'בסדר, תודה! 🙏' });
+            return;
+        }
+
+        // ── Keyword filter ───────────────────────────────────────────────────
         const SHIFT_KEYWORDS = [
             'משמרת', 'משמרות', 'פנוי', 'פנויה', 'זמינות', 'סידור',
             'תורנות', 'החלפה', 'אישור', 'ביטול', 'לא יכול', 'לא אוכל',
@@ -109,7 +159,6 @@ export const initWhatsAppSocket = async (businessId: string) => {
         ];
         const lowerText = incomingText.toLowerCase();
         const isShiftRelated = SHIFT_KEYWORDS.some(kw => lowerText.includes(kw));
-        const jid = msg.key.remoteJid!;
         const isActiveConversation = !!activeConversations[businessId]?.has(jid);
 
         if (!isShiftRelated && !isActiveConversation) {
@@ -117,10 +166,16 @@ export const initWhatsAppSocket = async (businessId: string) => {
             return;
         }
 
+        // ── Cancel nudge on employee reply (they're still talking) ───────────
+        const convState = activeConversations[businessId]?.get(jid);
+        if (convState?.nudgeTimer) {
+            clearTimeout(convState.nudgeTimer);
+            convState.nudgeTimer = null;
+        }
+
         try {
             const { isEmployeePhone } = await import('./firebase');
             const isEmployee = await isEmployeePhone(businessId, jid);
-
             if (!isEmployee) {
                 console.log(`[WHATSAPP] Ignoring message from unauthorized number: ${jid}`);
                 return;
@@ -132,17 +187,8 @@ export const initWhatsAppSocket = async (businessId: string) => {
             await sock.sendMessage(jid, { text: aiResponse });
             console.log(`[WHATSAPP] AI replied to ${jid}`);
 
-            // Sliding-window: reset 5-minute inactivity timer on each bot reply
-            if (!activeConversations[businessId]) {
-                activeConversations[businessId] = new Map();
-            }
-            const existing = activeConversations[businessId].get(jid);
-            if (existing) clearTimeout(existing);
-            const timer = setTimeout(() => {
-                activeConversations[businessId]?.delete(jid);
-                console.log(`[WHATSAPP] Conversation closed (idle 5m): ${jid}`);
-            }, CONVERSATION_TTL_MS);
-            activeConversations[businessId].set(jid, timer);
+            // Refresh conversation window + schedule next nudge
+            refreshConversation(businessId, jid, sock);
         } catch (err) {
             console.error("[WHATSAPP] Error processing AI response:", err);
         }
@@ -156,7 +202,6 @@ export const getPairingCode = async (businessId: string, phoneNumber: string) =>
     if (!sock) {
         throw new Error("WhatsApp socket not initialized for this business. Please initiate connection first.");
     }
-    // Clean phone number (remove +, -, spaces)
     const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
     const code = await sock.requestPairingCode(cleanPhone);
     return code;
