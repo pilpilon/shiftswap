@@ -91,19 +91,30 @@ export const initWhatsAppSocket = async (businessId: string) => {
 
         if (connection === 'close') {
             const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
-            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+
+            // connectionReplaced (440): another instance/device took over this session.
+            // Do NOT reconnect — the new instance is already connected. Reconnecting would
+            // cause an infinite conflict loop between Render instances during rolling deploys.
+            const shouldReconnect =
+                statusCode !== DisconnectReason.loggedOut &&
+                statusCode !== DisconnectReason.connectionReplaced;
+
             console.log(`[WHATSAPP] Connection closed for ${businessId} — status ${statusCode}, reconnecting: ${shouldReconnect}`);
 
             delete activeSockets[businessId];
             delete pendingSockets[businessId];
             delete qrCodes[businessId];
 
-            if (shouldReconnect) {
-                setTimeout(() => initWhatsAppSocket(businessId), 3000);
+            if (statusCode === DisconnectReason.connectionReplaced) {
+                console.log(`[WHATSAPP] Session replaced by another instance — standing down gracefully.`);
+            } else if (shouldReconnect) {
+                // Use a longer delay (8s) to avoid hammering WhatsApp with rapid reconnects
+                setTimeout(() => initWhatsAppSocket(businessId), 8000);
             } else {
                 console.log(`[WHATSAPP] User logged out natively. Deleting Firestore session for ${businessId}`);
                 await deleteFirestoreAuthState(businessId);
             }
+
         } else if (connection === 'open') {
             console.log(`[WHATSAPP] Connected! Socket ready for ${businessId}`);
             activeSockets[businessId] = sock;
