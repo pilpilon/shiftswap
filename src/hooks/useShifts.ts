@@ -15,6 +15,8 @@ export interface RoleRequirement {
     role: string;       // e.g., "מלצר", "טבח", "מארחת"
     count: number;      // total needed for this role
     skillLevel: SkillLevel; // required skill level
+    startTime?: string; // e.g. "21:00" — optional per-role start (within shift window)
+    endTime?: string;   // e.g. "24:00" — optional per-role end
     assignedIds?: string[]; // IDs of staff members assigned to this role
 }
 

@@ -42,7 +42,19 @@ const SKILL_SHORT: Record<SkillLevel, string> = {
 };
 
 // Empty role row factory
-const newRow = (): RoleRequirement => ({ role: '', count: 1, skillLevel: 'standard' });
+const newRow = (shiftStart = '08:00', shiftEnd = '16:00'): RoleRequirement => ({
+    role: '',
+    count: 1,
+    skillLevel: 'standard',
+    startTime: shiftStart,
+    endTime: shiftEnd,
+});
+
+/** Parse a title like "18:00 - 24:00" and return [start, end] or defaults */
+function parseTimes(title: string): [string, string] {
+    const m = title.match(/(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})/);
+    return m ? [m[1], m[2]] : ['08:00', '16:00'];
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Component
@@ -65,23 +77,27 @@ export default function RosterView() {
 
     // Form state
     const [newDate, setNewDate] = useState('');
-    const [newTitle, setNewTitle] = useState('בוקר (08:00 - 16:00)');
+    const [shiftStart, setShiftStart] = useState('08:00');
+    const [shiftEnd, setShiftEnd] = useState('16:00');
     const [roleRows, setRoleRows] = useState<RoleRequirement[]>([newRow()]);
 
     // ── Form helpers ──────────────────────────────────────────────────────────
     const openAddShiftForDate = (dateStr: string) => {
         setEditingShiftId(null);
         setNewDate(dateStr);
-        setNewTitle('בוקר (08:00 - 16:00)');
-        setRoleRows([newRow()]);
+        setShiftStart('08:00');
+        setShiftEnd('16:00');
+        setRoleRows([newRow('08:00', '16:00')]);
         setAddingDate(dateStr);
     };
 
     const handleEditClick = (shift: Shift) => {
         setEditingShiftId(shift.id);
         setNewDate(shift.date);
-        setNewTitle(shift.title);
-        setRoleRows(shift.roleRequirements && shift.roleRequirements.length > 0 ? shift.roleRequirements : [newRow()]);
+        const [s, e] = parseTimes(shift.title);
+        setShiftStart(s);
+        setShiftEnd(e);
+        setRoleRows(shift.roleRequirements && shift.roleRequirements.length > 0 ? shift.roleRequirements : [newRow(s, e)]);
         setAddingDate(shift.date);
         document.getElementById(`day-${shift.date}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
@@ -90,7 +106,7 @@ export default function RosterView() {
         setRoleRows(prev => prev.map((r, i) => i === index ? { ...r, ...patch } : r));
     };
 
-    const addRow = () => setRoleRows(prev => [...prev, newRow()]);
+    const addRow = () => setRoleRows(prev => [...prev, newRow(shiftStart, shiftEnd)]);
 
     const removeRow = (index: number) => {
         setRoleRows(prev => prev.length === 1 ? prev : prev.filter((_, i) => i !== index));
@@ -104,12 +120,13 @@ export default function RosterView() {
                 return;
             }
         }
+        const composedTitle = `${shiftStart} - ${shiftEnd}`;
         try {
             if (editingShiftId) {
                 const totalRequired = roleRows.reduce((sum, r) => sum + r.count, 0);
-                await updateShift(editingShiftId, { title: newTitle, roleRequirements: roleRows, totalRequired });
+                await updateShift(editingShiftId, { title: composedTitle, roleRequirements: roleRows, totalRequired });
             } else {
-                await addShift(newDate, newTitle, roleRows);
+                await addShift(newDate, composedTitle, roleRows);
             }
             setAddingDate(null);
             setEditingShiftId(null);
@@ -443,24 +460,31 @@ export default function RosterView() {
                                                 {editingShiftId ? 'עריכת משמרת קיימת' : 'הוספת משמרת חדשה'}
                                             </h4>
 
-                                            {/* Shift type */}
-                                            <select
-                                                value={newTitle}
-                                                onChange={e => setNewTitle(e.target.value)}
-                                                className="w-full border border-slate-200 rounded-xl px-4 py-2 focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm mb-4 bg-white text-right"
-                                            >
-                                                <option value="בוקר (08:00 - 16:00)">בוקר (08:00 - 16:00)</option>
-                                                <option value="ערב (16:00 - 24:00)">ערב (16:00 - 24:00)</option>
-                                                <option value="לילה (24:00 - 08:00)">לילה (24:00 - 08:00)</option>
-                                                <option value="משמרת כפולה">משמרת כפולה</option>
-                                            </select>
+                                            {/* Shift hours — free time range */}
+                                            <div className="flex items-center gap-2 mb-4">
+                                                <label className="text-xs font-semibold text-slate-500 shrink-0">שעות משמרת:</label>
+                                                <input
+                                                    type="time"
+                                                    value={shiftStart}
+                                                    onChange={e => setShiftStart(e.target.value)}
+                                                    className="flex-1 border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm bg-white text-center"
+                                                />
+                                                <span className="text-slate-400 text-sm">עד</span>
+                                                <input
+                                                    type="time"
+                                                    value={shiftEnd}
+                                                    onChange={e => setShiftEnd(e.target.value)}
+                                                    className="flex-1 border border-slate-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-brand-blue focus:outline-none text-sm bg-white text-center"
+                                                />
+                                            </div>
 
                                             {/* Role requirements table */}
                                             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mb-3">
                                                 {/* Table header */}
-                                                <div className="grid grid-cols-[auto_52px_110px_32px] gap-2 px-3 py-2 bg-slate-100 text-xs font-semibold text-slate-500">
+                                                <div className="grid grid-cols-[auto_52px_130px_110px_32px] gap-2 px-3 py-2 bg-slate-100 text-xs font-semibold text-slate-500">
                                                     <span>תפקיד</span>
                                                     <span className="text-center">כמות</span>
+                                                    <span className="text-center">שעות</span>
                                                     <span className="text-center">רמה</span>
                                                     <span />
                                                 </div>
@@ -470,7 +494,7 @@ export default function RosterView() {
                                                     {roleRows.map((row, idx) => (
                                                         <div
                                                             key={idx}
-                                                            className="grid grid-cols-[auto_52px_110px_32px] gap-2 px-3 py-2 items-center"
+                                                            className="grid grid-cols-[auto_52px_130px_110px_32px] gap-2 px-3 py-2 items-center"
                                                         >
                                                             {/* Role name */}
                                                             <div>
@@ -497,6 +521,23 @@ export default function RosterView() {
                                                                 onChange={e => updateRow(idx, { count: Number(e.target.value) })}
                                                                 className="w-full border border-slate-200 rounded-lg px-1 py-1.5 text-sm text-center focus:ring-2 focus:ring-brand-blue focus:outline-none"
                                                             />
+
+                                                            {/* Per-role time range */}
+                                                            <div className="flex items-center gap-1">
+                                                                <input
+                                                                    type="time"
+                                                                    value={row.startTime ?? shiftStart}
+                                                                    onChange={e => updateRow(idx, { startTime: e.target.value })}
+                                                                    className="w-full border border-slate-200 rounded-lg px-1 py-1.5 text-xs text-center focus:ring-2 focus:ring-brand-blue focus:outline-none"
+                                                                />
+                                                                <span className="text-slate-300 text-xs">-</span>
+                                                                <input
+                                                                    type="time"
+                                                                    value={row.endTime ?? shiftEnd}
+                                                                    onChange={e => updateRow(idx, { endTime: e.target.value })}
+                                                                    className="w-full border border-slate-200 rounded-lg px-1 py-1.5 text-xs text-center focus:ring-2 focus:ring-brand-blue focus:outline-none"
+                                                                />
+                                                            </div>
 
                                                             {/* Skill level */}
                                                             <select
@@ -703,10 +744,13 @@ function ShiftCard({ shift, staff, onRemove, onEdit, onUpdate }: { shift: Shift;
                     {roles.map((r, i) => {
                         return (
                             <div key={i} className={`flex flex-col gap-1.5 p-2.5 rounded-lg border ${SKILL_COLORS[r.skillLevel]}`}>
-                                <div className="flex items-center gap-1.5 text-sm font-semibold">
+                                <div className="flex items-center gap-1.5 text-sm font-semibold flex-wrap">
                                     <span className="bg-white/50 px-1.5 py-0.5 rounded text-xs leading-none shadow-sm">{r.count}×</span>
                                     <span>{r.role}</span>
                                     <span className="opacity-70 text-xs font-normal">({SKILL_SHORT[r.skillLevel]})</span>
+                                    {r.startTime && r.endTime && (
+                                        <span className="text-xs opacity-60 font-mono">{r.startTime}–{r.endTime}</span>
+                                    )}
                                 </div>
                                 {(r.assignedIds && r.assignedIds.length > 0) ? (
                                     <div className="text-sm font-medium pr-1 text-slate-700 flex flex-wrap gap-1 mt-1">

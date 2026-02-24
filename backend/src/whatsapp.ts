@@ -93,6 +93,19 @@ export const initWhatsAppSocket = async (businessId: string) => {
 
         console.log(`[WHATSAPP] Received message from ${msg.key.remoteJid}: ${incomingText}`);
 
+        // Keyword filter — only invoke AI for shift-related messages
+        const SHIFT_KEYWORDS = [
+            'משמרת', 'משמרות', 'פנוי', 'פנויה', 'זמינות', 'סידור',
+            'תורנות', 'החלפה', 'אישור', 'ביטול', 'לא יכול', 'לא אוכל',
+            'שיבוץ', 'עבודה'
+        ];
+        const lowerText = incomingText.toLowerCase();
+        const isShiftRelated = SHIFT_KEYWORDS.some(kw => lowerText.includes(kw));
+        if (!isShiftRelated) {
+            console.log(`[WHATSAPP] Ignoring non-shift message from ${msg.key.remoteJid}`);
+            return;
+        }
+
         try {
             const { isEmployeePhone } = await import('./firebase');
             const isEmployee = await isEmployeePhone(businessId, msg.key.remoteJid!);

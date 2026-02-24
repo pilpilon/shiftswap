@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { initWhatsAppSocket, activeSockets, qrCodes, pendingSockets, getPairingCode } from './whatsapp';
 import { getFirestore } from './firebase';
 import { deleteFirestoreAuthState } from './firebaseAuthState';
+import { startReminderScheduler } from './scheduler';
 
 dotenv.config();
 
@@ -12,6 +13,9 @@ app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 4000;
+
+startReminderScheduler();
+
 
 // Auto-reconnect all businesses that have a stored Firestore session
 async function reconnectStoredSessions() {
@@ -134,14 +138,14 @@ app.post('/api/whatsapp/disconnect', async (req, res) => {
 });
 
 
-// ─── Publish Schedule: send real WhatsApp messages to assigned workers ───────
+// ─── Publish Schedule: generate CSV and send ONE message per employee ─────────
 app.post('/api/whatsapp/publish-schedule', async (req, res) => {
     const { businessId, shifts, staff } = req.body as {
         businessId: string;
         shifts: Array<{
             date: string;
             title: string;
-            roleRequirements: Array<{ role: string; assignedIds?: string[] }>;
+            roleRequirements: Array<{ role: string; assignedIds?: string[]; startTime?: string; endTime?: string }>;
         }>;
         staff: Array<{ id: string; name: string; phone: string }>;
     };
@@ -158,49 +162,84 @@ app.post('/api/whatsapp/publish-schedule', async (req, res) => {
     // Build a map of staffId → { name, phone }
     const staffById: Record<string, { name: string; phone: string }> = {};
     for (const s of staff) {
-        if (s.id && s.phone) {
-            staffById[s.id] = { name: s.name, phone: s.phone };
-        }
+        if (s.id && s.phone) staffById[s.id] = { name: s.name, phone: s.phone };
     }
 
-    let sentCount = 0;
-    const errors: string[] = [];
+    // Build per-employee shift list: employeePhone → [{ date, title, role, hours }]
+    type EmployeeShift = { date: string; shiftTitle: string; role: string; hours: string };
+    const employeeSchedule: Record<string, { name: string; jid: string; assignments: EmployeeShift[] }> = {};
 
     for (const shift of shifts) {
-        // Track phones already messaged for this shift to avoid duplicates
-        const sentThisShift = new Set<string>();
+        const [year, month, day] = shift.date.split('-');
+        const dateHe = `${day}/${month}/${year}`;
 
         for (const req of shift.roleRequirements) {
             for (const staffId of (req.assignedIds ?? [])) {
                 const member = staffById[staffId];
                 if (!member) continue;
 
-                // Normalize Israeli phone to WhatsApp JID format (972XXXXXXXXX@s.whatsapp.net)
+                // Normalize Israeli phone → WhatsApp JID
                 let phone = member.phone.replace(/[^0-9]/g, '');
                 if (phone.startsWith('0')) phone = '972' + phone.slice(1);
                 const jid = `${phone}@s.whatsapp.net`;
 
-                if (sentThisShift.has(jid)) continue;
-                sentThisShift.add(jid);
-
-                const [year, month, day] = shift.date.split('-');
-                const dateHebrew = `${day}/${month}/${year}`;
-                const message = `שלום ${member.name} 👋\n\nהסידור השבועי פורסם!\n\n📅 תאריך: ${dateHebrew}\n⏰ משמרת: ${shift.title}\n\nתגיב "אישור" לאישור קבלת ההודעה, או פנה לינה ישירות אם יש לך בקשה לשינוי.`;
-
-                try {
-                    await sock.sendMessage(jid, { text: message });
-                    sentCount++;
-                    console.log(`[PUBLISH] Sent to ${member.name} (${jid})`);
-                } catch (err: any) {
-                    console.error(`[PUBLISH] Failed to send to ${member.name}:`, err.message);
-                    errors.push(`${member.name}: ${err.message}`);
+                if (!employeeSchedule[jid]) {
+                    employeeSchedule[jid] = { name: member.name, jid, assignments: [] };
                 }
+
+                const hours = req.startTime && req.endTime
+                    ? `${req.startTime}-${req.endTime}`
+                    : shift.title;
+
+                employeeSchedule[jid].assignments.push({
+                    date: dateHe,
+                    shiftTitle: shift.title,
+                    role: req.role,
+                    hours,
+                });
             }
+        }
+    }
+
+    // Generate and send a CSV per employee
+    let sentCount = 0;
+    const errors: string[] = [];
+
+    for (const { name, jid, assignments } of Object.values(employeeSchedule)) {
+        // Sort by date
+        assignments.sort((a, b) => a.date.localeCompare(b.date));
+
+        // Build CSV string (RTL-friendly: BOM + Hebrew headers)
+        const BOM = '\uFEFF';
+        const header = 'תאריך,שעות,תפקיד';
+        const rows = assignments.map(a => `${a.date},${a.hours},${a.role}`);
+        const csvContent = BOM + [header, ...rows].join('\n');
+
+        const textMsg = `שלום ${name} 👋\nהסידור שלך לשבוע הבא מצורף.\nאם לא תוכל להגיע למשמרת כלשהי — שלח לי הודעה ואתאם החלפה.`;
+
+        try {
+            // Send text header first
+            await sock.sendMessage(jid, { text: textMsg });
+
+            // Send CSV as a document
+            await sock.sendMessage(jid, {
+                document: Buffer.from(csvContent, 'utf-8'),
+                mimetype: 'text/csv',
+                fileName: 'סידור_עבודה.csv',
+                caption: 'סידור עבודה שבועי',
+            });
+
+            sentCount++;
+            console.log(`[PUBLISH] Sent schedule to ${name} (${jid})`);
+        } catch (err: any) {
+            console.error(`[PUBLISH] Failed to send to ${name}:`, err.message);
+            errors.push(`${name}: ${err.message}`);
         }
     }
 
     res.json({ sent: sentCount, errors });
 });
+
 
 app.listen(PORT, () => {
     console.log(`Backend server running on port ${PORT}`);

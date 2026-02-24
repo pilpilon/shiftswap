@@ -122,3 +122,71 @@ export async function isEmployeePhone(businessId: string, phoneJid: string): Pro
     console.log(`[AUTH] Rejected message from ${normalizedSender} — not in staff list.`);
     return false;
 }
+
+// ─── Availability Submission ───────────────────────────────────────────────
+
+/** Returns current ISO week key e.g. "2026-W08" */
+export function getCurrentWeekKey(): string {
+    const now = new Date();
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const weekNo = Math.ceil((((now.getTime() - startOfYear.getTime()) / 86400000) + startOfYear.getDay() + 1) / 7);
+    return `${now.getFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+}
+
+/** Save an employee's availability for the upcoming week */
+export async function saveAvailability(
+    businessId: string,
+    phone: string, // normalized phone (972XXXXXXXXX)
+    weekKey: string,
+    days: string[]   // e.g. ["שני", "שלישי", "שישי"]
+): Promise<void> {
+    if (!db) return;
+    await db
+        .collection('availability')
+        .doc(businessId)
+        .collection(weekKey)
+        .doc(phone)
+        .set({ days, submittedAt: new Date().toISOString() });
+}
+
+/** Get all submitted availability for a given week */
+export async function getAvailability(
+    businessId: string,
+    weekKey: string
+): Promise<Record<string, string[]>> {
+    if (!db) return {};
+    const snap = await db
+        .collection('availability')
+        .doc(businessId)
+        .collection(weekKey)
+        .get();
+    const result: Record<string, string[]> = {};
+    snap.forEach(doc => { result[doc.id] = doc.data().days ?? []; });
+    return result;
+}
+
+/** Returns phone numbers of staff who have NOT submitted availability this week */
+export async function getStaffWhoHaventSubmitted(
+    businessId: string,
+    weekKey: string
+): Promise<{ name: string; phone: string }[]> {
+    if (!db) return [];
+
+    const [staffSnap, submittedMap] = await Promise.all([
+        db.collection('staff').where('businessId', '==', businessId).get(),
+        getAvailability(businessId, weekKey),
+    ]);
+
+    const missing: { name: string; phone: string }[] = [];
+    for (const doc of staffSnap.docs) {
+        const data = doc.data();
+        if (!data.phone) continue;
+        let phone = data.phone.replace(/\D/g, '');
+        if (phone.startsWith('0')) phone = '972' + phone.slice(1);
+        if (!submittedMap[phone]) {
+            missing.push({ name: data.name, phone });
+        }
+    }
+    return missing;
+}
+
