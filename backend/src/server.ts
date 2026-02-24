@@ -1,9 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import fs from 'fs';
-import path from 'path';
 import { initWhatsAppSocket, activeSockets, qrCodes, pendingSockets, getPairingCode } from './whatsapp';
+import { getFirestore } from './firebase';
+import { deleteFirestoreAuthState } from './firebaseAuthState';
 
 dotenv.config();
 
@@ -13,17 +13,26 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 4000;
 
-// Auto-reconnect existing sessions
-const SESSIONS_DIR = path.join(__dirname, '..', 'sessions');
-if (fs.existsSync(SESSIONS_DIR)) {
-    const sessions = fs.readdirSync(SESSIONS_DIR);
-    for (const sessionId of sessions) {
-        if (fs.statSync(path.join(SESSIONS_DIR, sessionId)).isDirectory()) {
-            console.log(`Auto-reconnecting existing session: ${sessionId}`);
-            initWhatsAppSocket(sessionId);
+// Auto-reconnect all businesses that have a stored Firestore session
+async function reconnectStoredSessions() {
+    const db = getFirestore();
+    if (!db) {
+        console.warn('[SERVER] Firestore not available — skipping auto-reconnect.');
+        return;
+    }
+    try {
+        const snap = await db.collection('whatsapp_sessions').listDocuments();
+        for (const docRef of snap) {
+            const businessId = docRef.id;
+            console.log(`[SERVER] Auto-reconnecting Firestore session: ${businessId}`);
+            initWhatsAppSocket(businessId);
         }
+    } catch (err) {
+        console.error('[SERVER] Failed to load Firestore sessions:', err);
     }
 }
+
+reconnectStoredSessions();
 
 app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
@@ -100,21 +109,26 @@ app.get('/api/whatsapp/status/:businessId', (req, res) => {
 app.post('/api/whatsapp/disconnect', async (req, res) => {
     const { businessId } = req.body;
 
+    // Close the active socket if open
     if (activeSockets[businessId]) {
         try {
-            activeSockets[businessId].logout();
-            delete activeSockets[businessId];
+            await activeSockets[businessId].logout();
         } catch (e) {
-            console.error("Error logging out", e);
+            console.error("Error logging out socket", e);
         }
+        delete activeSockets[businessId];
     }
 
-    // Always force delete the session directory so they can get a fresh QR code
-    const sessionDir = path.join(SESSIONS_DIR, businessId);
-    if (fs.existsSync(sessionDir)) {
-        fs.rmSync(sessionDir, { recursive: true, force: true });
-        console.log(`[WHATSAPP] Forcefully deleted session directory for ${businessId}`);
+    // Also clear any pending socket
+    if (pendingSockets[businessId]) {
+        try { pendingSockets[businessId].end(); } catch (_) { }
+        delete pendingSockets[businessId];
     }
+    delete qrCodes[businessId];
+
+    // Delete Firestore session so the device is fully de-registered
+    await deleteFirestoreAuthState(businessId);
+    console.log(`[WHATSAPP] Firestore session deleted for ${businessId}`);
 
     res.json({ status: 'logged_out' });
 });

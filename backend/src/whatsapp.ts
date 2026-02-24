@@ -1,30 +1,19 @@
-import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
+import makeWASocket, { DisconnectReason, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
-import path from 'path';
-import fs from 'fs';
 import QRCode from 'qrcode';
+import { useFirestoreAuthState, deleteFirestoreAuthState } from './firebaseAuthState';
 
 // Store active sockets
 export const activeSockets: Record<string, any> = {};
 export const pendingSockets: Record<string, any> = {};
 export const qrCodes: Record<string, string> = {};
 
-// We store sessions locally for now. Later we will move this to Firebase.
-const SESSIONS_DIR = path.join(__dirname, '..', 'sessions');
-if (!fs.existsSync(SESSIONS_DIR)) {
-    fs.mkdirSync(SESSIONS_DIR);
-}
-
 export const initWhatsAppSocket = async (businessId: string) => {
-    const sessionDir = path.join(SESSIONS_DIR, businessId);
-
-    // Auth state hook provided by Baileys
-    const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
-    const { version } = await fetchLatestBaileysVersion();
-
-    let qrcodeCallback: ((qr: string) => void) | null = null;
-
     console.log(`[WHATSAPP] Starting socket for business ${businessId}`);
+
+    // Load credentials from Firestore (persists across Render restarts/deploys)
+    const { state, saveCreds } = await useFirestoreAuthState(businessId);
+    const { version } = await fetchLatestBaileysVersion();
 
     const sock = makeWASocket({
         version,
@@ -38,6 +27,7 @@ export const initWhatsAppSocket = async (businessId: string) => {
 
     pendingSockets[businessId] = sock;
 
+    // Persist credentials whenever they change
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', async (update) => {
@@ -54,18 +44,21 @@ export const initWhatsAppSocket = async (businessId: string) => {
         }
 
         if (connection === 'close') {
-            const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log(`[WHATSAPP] Connection closed for ${businessId} due to ${lastDisconnect?.error}, reconnecting: ${shouldReconnect}`);
+            const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+            console.log(`[WHATSAPP] Connection closed for ${businessId} — status ${statusCode}, reconnecting: ${shouldReconnect}`);
 
             delete activeSockets[businessId];
             delete pendingSockets[businessId];
             delete qrCodes[businessId];
 
             if (shouldReconnect) {
-                initWhatsAppSocket(businessId);
+                // Wait briefly before reconnecting to avoid tight loops on e.g. 500 errors
+                setTimeout(() => initWhatsAppSocket(businessId), 3000);
             } else {
-                console.log(`[WHATSAPP] User logged out natively. Deleting session ${businessId}`);
-                fs.rmSync(sessionDir, { recursive: true, force: true });
+                // User explicitly logged out from their phone — clear Firestore session
+                console.log(`[WHATSAPP] User logged out natively. Deleting Firestore session for ${businessId}`);
+                await deleteFirestoreAuthState(businessId);
             }
         } else if (connection === 'open') {
             console.log(`[WHATSAPP] Connected! Socket ready for ${businessId}`);
