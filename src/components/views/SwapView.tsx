@@ -1,39 +1,39 @@
-import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar, UserPlus, AlertCircle, Clock, CheckCircle2 } from 'lucide-react';
-import { useShifts } from '../../hooks/useShifts';
+import { AlertCircle, Clock, CheckCircle2 } from 'lucide-react';
+import { useSwaps } from '../../hooks/useSwaps';
 import { useAuth } from '../../context/AuthContext';
 
 export default function SwapView() {
     const { user } = useAuth();
-    const { shifts } = useShifts(user?.businessId);
+    const { swaps: swapRequests, loading } = useSwaps(user?.businessId);
 
-    // Mock data for swapped shifts until AI engine populates Firestore
-    const [swapRequests, setSwapRequests] = useState([
-        {
-            id: 'swap1',
-            date: '28/02/2026',
-            shiftTitle: 'משמרת בוקר',
-            role: 'מלצר',
-            hours: '08:00-16:00',
-            originalEmployee: 'אורי לוי',
-            reason: 'חולה',
-            status: 'pending', // pending, covered 
-            urgency: 'high'
-        },
-        {
-            id: 'swap2',
-            date: '02/03/2026',
-            shiftTitle: 'משמרת ערב',
-            role: 'ברמן',
-            hours: '17:00-01:00',
-            originalEmployee: 'נועה כהן',
-            reason: 'לימודים',
-            status: 'covered',
-            coveredBy: 'עומר דן',
-            urgency: 'low'
-        }
-    ]);
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center p-12">
+                <p className="text-slate-500 font-medium">טוען בקשות החלפה...</p>
+            </div>
+        );
+    }
+
+    if (swapRequests.length === 0) {
+        return (
+            <div className="space-y-6 pb-24 md:pb-8">
+                <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <h2 className="text-2xl font-bold text-slate-800">ניהול החלפות <span className="text-brand-gold">AI</span></h2>
+                        <p className="text-sm text-slate-500 mt-1">
+                            כאן יופיעו משמרות שהבוט מנסה לאייש אוטומטית.
+                        </p>
+                    </div>
+                </div>
+                <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-sm">
+                    <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-bold text-slate-800 mb-1">הכל שקט ויציב</h3>
+                    <p className="text-sm text-slate-500">אין כרגע בקשות להחלפת משמרות.</p>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="space-y-6 pb-24 md:pb-8">
@@ -70,7 +70,7 @@ export default function SwapView() {
                                     )}
                                     <div>
                                         <h3 className="font-bold text-slate-800">{req.date}</h3>
-                                        <p className="text-xs font-semibold text-slate-600">{req.shiftTitle} ({req.hours})</p>
+                                        <p className="text-xs font-semibold text-slate-600">{req.shiftTitle}</p>
                                     </div>
                                 </div>
                                 {req.urgency === 'high' && req.status === 'pending' && (
@@ -92,7 +92,7 @@ export default function SwapView() {
                                             {req.originalEmployee.charAt(0)}
                                         </div>
                                         <div className="text-xs">
-                                            <span className="block text-slate-500">ביטל/ה:</span>
+                                            <span className="block text-slate-500">ביטל עקב: {req.reason.substring(0, 15)}</span>
                                             <span className="font-bold text-slate-800 line-through decoration-rose-400">{req.originalEmployee}</span>
                                         </div>
                                     </div>

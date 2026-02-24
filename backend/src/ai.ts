@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 
 const ai = new GoogleGenAI({});
 
@@ -89,6 +89,8 @@ export async function processIncomingMessage(businessId: string, remoteJid: stri
         Open Shifts:
         ${shiftsStr}
         
+        CRITICAL: If an employee explicitly states they cannot work an upcoming shift (e.g. they are sick, have an exam, etc.), you MUST use the 'registerShiftCancellation' tool. Do NOT just say "feel better", you must register it.
+        
         Respond concisely, professionally, and naturally in Hebrew.
     `;
 
@@ -99,10 +101,51 @@ export async function processIncomingMessage(businessId: string, remoteJid: stri
             config: {
                 systemInstruction,
                 temperature: 0.7,
+                tools: [{
+                    functionDeclarations: [
+                        {
+                            name: 'registerShiftCancellation',
+                            description: 'Registers that an employee cannot attend their upcoming shift. Use this WHEN the user clearly states they are cancelling or cannot attend a shift.',
+                            parameters: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    reason: {
+                                        type: Type.STRING,
+                                        description: 'The reason the employee is cancelling (e.g., sick, exam, personal).'
+                                    },
+                                    date: {
+                                        type: Type.STRING,
+                                        description: 'The date of the shift they are cancelling, in DD/MM/YYYY format if possible, or relative days like "מחר".'
+                                    }
+                                },
+                                required: ['reason', 'date']
+                            }
+                        }
+                    ]
+                }]
             }
         });
 
-        const botReply = response.text || 'סליחה, לא הבנתי. תוכל לחזור שנית?';
+        let botReply = '';
+
+        // Handle function calls if the AI decided to invoke one
+        if (response.functionCalls && response.functionCalls.length > 0) {
+            const call = response.functionCalls[0];
+            if (call.name === 'registerShiftCancellation') {
+                const args = call.args as { reason: string, date: string };
+                console.log(`[AI] Shift cancellation detected: reason=${args.reason}, date=${args.date}`);
+
+                const { registerSwapRequest } = await import('./firebase');
+                const phone = remoteJid.split('@')[0];
+                await registerSwapRequest(businessId, phone, args.date, args.reason);
+
+                // We ask the AI to generate a response knowing the action was taken, but for speed we'll just return a hardcoded one for now
+                botReply = `הבנתי, רשמתי שאת/ה לא יכול/ה להגיע ב-${args.date} בגלל: ${args.reason}. אני מחפש מחליף כרגע ואעדכן את המנהל. תרגיש/י טוב!`;
+            }
+        } else {
+            botReply = response.text || 'סליחה, לא הבנתי. תוכל לחזור שנית?';
+        }
+
         await saveNegotiationLog(businessId, remoteJid, botReply, 'ai');
         return botReply;
     } catch (error) {

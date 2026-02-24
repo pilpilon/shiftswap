@@ -240,3 +240,81 @@ export async function getPublishedSchedule(
     }
     return null;
 }
+
+// ─── Shift Swaps / AI Cancellations ───────────────────────────────────────
+
+export interface SwapRequest {
+    id: string;
+    date: string;       // DD/MM/YYYY text
+    shiftTitle: string; // The "hours" string
+    role: string;
+    originalEmployee: string;
+    originalPhone: string;
+    reason: string;
+    status: 'pending' | 'covered';
+    coveredBy?: string;
+    urgency: 'high' | 'medium' | 'low';
+    createdAt: string;
+}
+
+export async function registerSwapRequest(
+    businessId: string,
+    phone: string,
+    dateString: string,
+    reason: string
+): Promise<void> {
+    if (!db) return;
+
+    // We try to find the actual shift from the current week
+    const weekKey = getCurrentWeekKey();
+    const publishedShifts = await getPublishedSchedule(businessId, weekKey, phone);
+
+    let role = 'חבר צוות';
+    let shiftTitle = 'משמרת';
+    let urgency: 'high' | 'medium' | 'low' = 'medium';
+    let actualDate = dateString;
+
+    if (publishedShifts && publishedShifts.length > 0) {
+        // Find the closest or specifically requested shift
+        // For MVP, we just take their first shift or the one matching the string loosely
+        const targetShift = publishedShifts.find(s => s.date.includes(dateString)) || publishedShifts[0];
+
+        if (targetShift) {
+            role = targetShift.role;
+            shiftTitle = targetShift.hours;
+            actualDate = targetShift.date;
+        }
+    }
+
+    try {
+        const staffSnap = await db.collection('staff').where('businessId', '==', businessId).get();
+        let employeeName = 'עובד לא מזוהה';
+        for (const doc of staffSnap.docs) {
+            const data = doc.data();
+            if (data.phone) {
+                let p = data.phone.replace(/[^0-9]/g, '');
+                if (p.startsWith('0')) p = '972' + p.slice(1);
+                if (p === phone) {
+                    employeeName = data.name;
+                    break;
+                }
+            }
+        }
+
+        await db.collection('businesses').doc(businessId).collection('swaps').add({
+            date: actualDate,
+            shiftTitle,
+            role,
+            originalEmployee: employeeName,
+            originalPhone: phone,
+            reason,
+            status: 'pending',
+            urgency,
+            createdAt: new Date().toISOString()
+        });
+
+        console.log(`[FIREBASE] Saved swap request for ${employeeName} on ${actualDate}`);
+    } catch (err) {
+        console.error("Failed to register swap request:", err);
+    }
+}
