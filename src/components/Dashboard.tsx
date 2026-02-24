@@ -23,7 +23,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     const unreadCount = notifications.filter(n => !n.read).length;
 
     const handleMarkAllRead = () => {
-        setNotifications(notifications.map(n => ({ ...n, read: true })));
+        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     };
 
     const tabs = [

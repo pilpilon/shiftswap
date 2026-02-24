@@ -242,11 +242,11 @@ export default function RosterView() {
                 </div>
 
                 {/* Bottom Row: Actions */}
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 mt-2">
                     {/* Deadline settings toggle */}
                     <button
                         onClick={() => setShowDeadlinePanel(v => !v)}
-                        className={`flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-xl transition-colors border ${showDeadlinePanel ? 'bg-brand-blue/10 text-brand-blue border-brand-blue/20' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+                        className={`flex-1 sm:flex-none justify-center flex items-center gap-1.5 text-sm font-medium px-4 py-2.5 rounded-xl transition-colors border ${showDeadlinePanel ? 'bg-brand-blue/10 text-brand-blue border-brand-blue/20' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
                     >
                         <Settings2 className="w-4 h-4" />
                         יום הגשה
@@ -256,7 +256,7 @@ export default function RosterView() {
                     <button
                         onClick={handleAutoAssign}
                         disabled={isAssigning}
-                        className="flex items-center gap-1.5 bg-brand-blue hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm transition-all"
+                        className="flex-1 sm:flex-none justify-center flex items-center gap-1.5 bg-brand-blue hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all"
                     >
                         {isAssigning
                             ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -269,7 +269,7 @@ export default function RosterView() {
                     <button
                         onClick={handlePublish}
                         disabled={isPublishing || isAssigning}
-                        className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm transition-all"
+                        className="flex-1 sm:flex-none justify-center flex items-center gap-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all"
                         title="פרסם סידור"
                     >
                         {isPublishing
