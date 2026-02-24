@@ -8,8 +8,11 @@ export const activeSockets: Record<string, any> = {};
 export const pendingSockets: Record<string, any> = {};
 export const qrCodes: Record<string, string> = {};
 
-// Track JIDs that are currently in an active conversation with the bot (auto-clears after 30m)
-const activeConversations: Record<string, Set<string>> = {};
+// Track JIDs in an active conversation with the bot.
+// Value is the pending expiry timer so it can be reset on each reply (sliding window).
+// Window: 5 minutes of inactivity closes the conversation.
+const CONVERSATION_TTL_MS = 5 * 60 * 1000;
+const activeConversations: Record<string, Map<string, ReturnType<typeof setTimeout>>> = {};
 
 export const initWhatsAppSocket = async (businessId: string) => {
     console.log(`[WHATSAPP] Starting socket for business ${businessId}`);
@@ -107,7 +110,7 @@ export const initWhatsAppSocket = async (businessId: string) => {
         const lowerText = incomingText.toLowerCase();
         const isShiftRelated = SHIFT_KEYWORDS.some(kw => lowerText.includes(kw));
         const jid = msg.key.remoteJid!;
-        const isActiveConversation = activeConversations[businessId]?.has(jid);
+        const isActiveConversation = !!activeConversations[businessId]?.has(jid);
 
         if (!isShiftRelated && !isActiveConversation) {
             console.log(`[WHATSAPP] Ignoring non-shift message from ${jid}`);
@@ -129,15 +132,17 @@ export const initWhatsAppSocket = async (businessId: string) => {
             await sock.sendMessage(jid, { text: aiResponse });
             console.log(`[WHATSAPP] AI replied to ${jid}`);
 
-            // Mark this JID as in an active conversation for 30 minutes
+            // Sliding-window: reset 5-minute inactivity timer on each bot reply
             if (!activeConversations[businessId]) {
-                activeConversations[businessId] = new Set();
+                activeConversations[businessId] = new Map();
             }
-            activeConversations[businessId].add(jid);
-            setTimeout(() => {
+            const existing = activeConversations[businessId].get(jid);
+            if (existing) clearTimeout(existing);
+            const timer = setTimeout(() => {
                 activeConversations[businessId]?.delete(jid);
-                console.log(`[WHATSAPP] Conversation timeout for ${jid}`);
-            }, 30 * 60 * 1000);
+                console.log(`[WHATSAPP] Conversation closed (idle 5m): ${jid}`);
+            }, CONVERSATION_TTL_MS);
+            activeConversations[businessId].set(jid, timer);
         } catch (err) {
             console.error("[WHATSAPP] Error processing AI response:", err);
         }
