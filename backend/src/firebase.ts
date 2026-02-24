@@ -1,17 +1,31 @@
 import * as admin from 'firebase-admin';
 
-// Initialize Firebase Admin
-// Make sure to set GOOGLE_APPLICATION_CREDENTIALS in your environment variable
-// pointing to your Firebase Admin SDK service account JSON file.
+// Initialize Firebase Admin SDK
+// On Render (or any cloud), set FIREBASE_SERVICE_ACCOUNT env var to the raw JSON
+// of your Firebase Admin service account key.
+// Alternatively, set GOOGLE_APPLICATION_CREDENTIALS to the local file path.
 
 let db: admin.firestore.Firestore | null = null;
 
 try {
-    admin.initializeApp();
+    let credential: admin.credential.Credential;
+
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        // Cloud environment (Render): use JSON string stored in env var
+        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        credential = admin.credential.cert(serviceAccount);
+        console.log('[FIREBASE] Initializing with FIREBASE_SERVICE_ACCOUNT env var');
+    } else {
+        // Local environment: use GOOGLE_APPLICATION_CREDENTIALS file path
+        credential = admin.credential.applicationDefault();
+        console.log('[FIREBASE] Initializing with GOOGLE_APPLICATION_CREDENTIALS file');
+    }
+
+    admin.initializeApp({ credential });
     db = admin.firestore();
-    console.log("Firebase Admin initialized successfully.");
+    console.log('[FIREBASE] Admin SDK initialized successfully.');
 } catch (error) {
-    console.warn("Could not initialize Firebase Admin SDK. Please configure credentials.", error);
+    console.warn('[FIREBASE] Could not initialize Admin SDK — running without DB.', error);
 }
 
 export const getFirestore = () => db;
