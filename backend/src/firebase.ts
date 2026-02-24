@@ -314,7 +314,170 @@ export async function registerSwapRequest(
         });
 
         console.log(`[FIREBASE] Saved swap request for ${employeeName} on ${actualDate}`);
+
+        // --- Trigger AI Negotiation Asynchronously ---
+        // We do not await this so the WhatsApp response to the original employee is fast
+        initiateNegotiation(businessId, actualDate, shiftTitle, role, phone, employeeName, reason).catch(e => {
+            console.error('[AI] Async negotiation failed:', e);
+        });
+
     } catch (err) {
         console.error("Failed to register swap request:", err);
+    }
+}
+
+async function initiateNegotiation(
+    businessId: string,
+    date: string,
+    shiftTitle: string,
+    role: string,
+    originalPhone: string,
+    originalName: string,
+    reason: string
+) {
+    if (!db) return;
+    try {
+        const staffSnap = await db.collection('staff').where('businessId', '==', businessId).get();
+        const candidates: any[] = [];
+
+        for (const doc of staffSnap.docs) {
+            const emp = doc.data();
+            if (!emp.phone) continue;
+
+            let p = emp.phone.replace(/[^0-9]/g, '');
+            if (p.startsWith('0')) p = '972' + p.slice(1);
+
+            // Skip the person who cancelled
+            if (p === originalPhone) continue;
+
+            // Basic filtering: In MVP we just ask everyone with a phone number (or filter by role if structured)
+            // For now, let's ask everyone to maximize coverage chance
+            candidates.push({ name: emp.name, phone: p });
+        }
+
+        if (candidates.length === 0) {
+            console.log(`[AI] No eligible candidates found for swap on ${date}`);
+            return;
+        }
+
+        // Dynamically import whatsapp to prevent circular dependency issues
+        const { activeSockets } = await import('./whatsapp');
+        const sock = activeSockets[businessId];
+        if (!sock) {
+            console.error(`[AI] WhatsApp socket not active for business ${businessId}. Cannot send offers.`);
+            return;
+        }
+
+        console.log(`[AI] Initiating negotiation with ${candidates.length} candidates for ${date}`);
+
+        for (const candidate of candidates) {
+            const jid = `${candidate.phone}@s.whatsapp.net`;
+            const offerMessage = `היי ${candidate.name}, ${originalName} נאלץ/ת לבטל את משמרת ${shiftTitle} בתאריך ${date} (${reason}).
+האם תרצה/י להחליף אותו/ה?
+(השב "כן אני אחליף" או "לא תודה")`;
+
+            await sock.sendMessage(jid, { text: offerMessage });
+
+            // Log the outbound offer
+            await db.collection('negotiation_logs').add({
+                businessId,
+                employeePhone: jid,
+                message: offerMessage,
+                sender: 'ai',
+                timestamp: new Date().toISOString()
+            });
+
+            // Add a slight delay to avoid rate limits
+            await new Promise(r => setTimeout(r, 1000));
+        }
+    } catch (error) {
+        console.error('[AI] Error in initiateNegotiation:', error);
+    }
+}
+
+export async function assignSwap(
+    businessId: string,
+    coveredByPhone: string
+): Promise<{ success: boolean; date?: string; shiftTitle?: string; error?: string }> {
+    if (!db) return { success: false, error: 'Database not connected' };
+
+    try {
+        // Find the oldest pending swap
+        const swapSnap = await db.collection('businesses')
+            .doc(businessId)
+            .collection('swaps')
+            .where('status', '==', 'pending')
+            .orderBy('createdAt', 'asc')
+            .limit(1)
+            .get();
+
+        if (swapSnap.empty) {
+            return { success: false, error: 'אין בקשות להחלפה כרגע.' };
+        }
+
+        const swapDoc = swapSnap.docs[0];
+        const swapData = swapDoc.data() as SwapRequest;
+
+        // Find the name of the covering employee
+        let coveredByName = 'עובד מחליף';
+        const staffSnap = await db.collection('staff')
+            .where('businessId', '==', businessId)
+            .get();
+
+        for (const doc of staffSnap.docs) {
+            const data = doc.data();
+            if (data.phone) {
+                let p = data.phone.replace(/[^0-9]/g, '');
+                if (p.startsWith('0')) p = '972' + p.slice(1);
+                if (p === coveredByPhone) {
+                    coveredByName = data.name;
+                    break;
+                }
+            }
+        }
+
+        // Mark the swap as covered
+        await swapDoc.ref.update({
+            status: 'covered',
+            coveredBy: coveredByName,
+            updatedAt: new Date().toISOString()
+        });
+
+        console.log(`[FIREBASE] Swap ${swapDoc.id} covered by ${coveredByName}`);
+
+        // --- Manager Alert ---
+        // Dynamically import whatsapp to prevent circular dependency issues
+        const { activeSockets } = await import('./whatsapp');
+        const sock = activeSockets[businessId];
+        if (sock) {
+            // Find managers to notify
+            const managersSnap = await db.collection('staff')
+                .where('businessId', '==', businessId)
+                .where('role', 'in', ['מנהל', 'אדמין', 'manager', 'admin'])
+                .get();
+
+            for (const mDoc of managersSnap.docs) {
+                const manager = mDoc.data();
+                if (manager.phone) {
+                    let mp = manager.phone.replace(/[^0-9]/g, '');
+                    if (mp.startsWith('0')) mp = '972' + mp.slice(1);
+
+                    const mJid = `${mp}@s.whatsapp.net`;
+                    const alertMsg = `ℹ️ עדכון סידור אוטומטי (AI):\n${coveredByName} לקח/ה את משמרת ${swapData.shiftTitle} ב-${swapData.date} במקום ${swapData.originalEmployee}.`;
+                    await sock.sendMessage(mJid, { text: alertMsg }).catch((e: any) => console.error("Manager alert error", e));
+                    await new Promise(r => setTimeout(r, 500));
+                }
+            }
+        }
+
+        return {
+            success: true,
+            date: swapData.date,
+            shiftTitle: swapData.shiftTitle
+        };
+
+    } catch (err) {
+        console.error("Failed to assign swap:", err);
+        return { success: false, error: 'Internal system error' };
     }
 }

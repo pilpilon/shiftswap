@@ -120,6 +120,15 @@ export async function processIncomingMessage(businessId: string, remoteJid: stri
                                 },
                                 required: ['reason', 'date']
                             }
+                        },
+                        {
+                            name: 'acceptShiftSwap',
+                            description: 'Registers that an employee has agreed to take over a shift that was offered to them. Use this when they reply yes/sure to an offer.',
+                            parameters: {
+                                type: Type.OBJECT,
+                                properties: {},
+                                required: []
+                            }
                         }
                     ]
                 }]
@@ -131,16 +140,22 @@ export async function processIncomingMessage(businessId: string, remoteJid: stri
         // Handle function calls if the AI decided to invoke one
         if (response.functionCalls && response.functionCalls.length > 0) {
             const call = response.functionCalls[0];
+            const phone = remoteJid.split('@')[0];
+            const { registerSwapRequest, assignSwap } = await import('./firebase');
+
             if (call.name === 'registerShiftCancellation') {
                 const args = call.args as { reason: string, date: string };
                 console.log(`[AI] Shift cancellation detected: reason=${args.reason}, date=${args.date}`);
-
-                const { registerSwapRequest } = await import('./firebase');
-                const phone = remoteJid.split('@')[0];
                 await registerSwapRequest(businessId, phone, args.date, args.reason);
-
-                // We ask the AI to generate a response knowing the action was taken, but for speed we'll just return a hardcoded one for now
                 botReply = `הבנתי, רשמתי שאת/ה לא יכול/ה להגיע ב-${args.date} בגלל: ${args.reason}. אני מחפש מחליף כרגע ואעדכן את המנהל. תרגיש/י טוב!`;
+            } else if (call.name === 'acceptShiftSwap') {
+                console.log(`[AI] Swap acceptance detected from ${phone}`);
+                const assignResult = await assignSwap(businessId, phone);
+                if (assignResult.success) {
+                    botReply = `מעולה! שיבצתי אותך למשמרת ב-${assignResult.date}. תודה רבה על העזרה! 🙏`;
+                } else {
+                    botReply = `תודה על הנכונות, אבל נראה שהמשמרת כבר אוישה על ידי מישהו אחר או שאין בקשות פתוחות כרגע.`;
+                }
             }
         } else {
             botReply = response.text || 'סליחה, לא הבנתי. תוכל לחזור שנית?';
