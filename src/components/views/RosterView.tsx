@@ -205,19 +205,78 @@ export default function RosterView() {
     return (
         <div className="space-y-4" dir="rtl">
             {/* ── Header ───────────────────────────────────────────────────── */}
-            <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                {/* Top Row: Title & Week Nav */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                         <Calendar className="w-6 h-6 text-brand-blue" />
                         יומן שבועי
                     </h2>
+
+                    {/* Week navigator */}
+                    <div className="flex items-center gap-1 bg-slate-50 rounded-xl border border-slate-200 p-1 self-start sm:self-auto">
+                        <button
+                            onClick={prevWeek}
+                            className="p-1.5 hover:bg-white rounded-lg text-slate-600 transition-colors shadow-sm cursor-pointer"
+                            title="שבוע קודם"
+                        >
+                            <ChevronRight className="w-5 h-5" />
+                        </button>
+                        <button
+                            onClick={jumpToToday}
+                            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${isCurrentWeek
+                                ? 'bg-brand-blue text-white shadow-sm'
+                                : 'hover:bg-white text-slate-700'
+                                }`}
+                        >
+                            השבוע
+                        </button>
+                        <button
+                            onClick={nextWeek}
+                            className="p-1.5 hover:bg-white rounded-lg text-slate-600 transition-colors shadow-sm cursor-pointer"
+                            title="שבוע הבא"
+                        >
+                            <ChevronLeft className="w-5 h-5" />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Bottom Row: Actions */}
+                <div className="flex flex-wrap items-center gap-2">
                     {/* Deadline settings toggle */}
                     <button
                         onClick={() => setShowDeadlinePanel(v => !v)}
-                        className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-brand-blue hover:bg-brand-blue/5 px-3 py-1.5 rounded-lg transition-colors border border-slate-200"
+                        className={`flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-xl transition-colors border ${showDeadlinePanel ? 'bg-brand-blue/10 text-brand-blue border-brand-blue/20' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
                     >
-                        <Settings2 className="w-3.5 h-3.5" />
+                        <Settings2 className="w-4 h-4" />
                         יום הגשה
+                    </button>
+
+                    {/* Auto-assign button */}
+                    <button
+                        onClick={handleAutoAssign}
+                        disabled={isAssigning}
+                        className="flex items-center gap-1.5 bg-brand-blue hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm transition-all"
+                    >
+                        {isAssigning
+                            ? <Loader2 className="w-4 h-4 animate-spin" />
+                            : <Wand2 className="w-4 h-4" />
+                        }
+                        שיבוץ אוטומטי
+                    </button>
+
+                    {/* Publish Button */}
+                    <button
+                        onClick={handlePublish}
+                        disabled={isPublishing || isAssigning}
+                        className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm transition-all"
+                        title="פרסם סידור"
+                    >
+                        {isPublishing
+                            ? <Loader2 className="w-4 h-4 animate-spin" />
+                            : <Send className="w-4 h-4" />
+                        }
+                        <span>שגר סידור</span>
                     </button>
                 </div>
 
@@ -273,63 +332,6 @@ export default function RosterView() {
                         </span>
                     </div>
                 )}
-
-                {/* ── Auto-assign button + message ─────────────────────────── */}
-                <div className="flex items-center gap-3">
-                    {/* Week navigator */}
-                    <div className="flex items-center gap-1 bg-white rounded-xl shadow-sm border border-slate-200 p-1">
-                        <button
-                            onClick={prevWeek}
-                            className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"
-                            title="שבוע קודם"
-                        >
-                            <ChevronRight className="w-5 h-5" />
-                        </button>
-                        <button
-                            onClick={jumpToToday}
-                            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${isCurrentWeek
-                                ? 'bg-brand-blue/10 text-brand-blue'
-                                : 'hover:bg-slate-100 text-slate-700'
-                                }`}
-                        >
-                            השבוע
-                        </button>
-                        <button
-                            onClick={nextWeek}
-                            className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"
-                            title="שבוע הבא"
-                        >
-                            <ChevronLeft className="w-5 h-5" />
-                        </button>
-                    </div>
-
-                    {/* Publish Button */}
-                    <button
-                        onClick={handlePublish}
-                        disabled={isPublishing || isAssigning}
-                        className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm transition-all"
-                        title="פרסם סידור"
-                    >
-                        {isPublishing
-                            ? <Loader2 className="w-4 h-4 animate-spin" />
-                            : <Send className="w-4 h-4" />
-                        }
-                        <span className="hidden sm:inline">שגר סידור</span>
-                    </button>
-
-                    {/* Auto-assign button */}
-                    <button
-                        onClick={handleAutoAssign}
-                        disabled={isAssigning}
-                        className="flex items-center gap-1.5 bg-brand-blue hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm transition-all"
-                    >
-                        {isAssigning
-                            ? <Loader2 className="w-4 h-4 animate-spin" />
-                            : <Wand2 className="w-4 h-4" />
-                        }
-                        שיבוץ אוטומטי
-                    </button>
-                </div>
 
                 {/* Feedback message */}
                 {assignMsg && (
@@ -518,18 +520,14 @@ export default function RosterView() {
                                                     key={shift.id}
                                                     shift={shift}
                                                     staff={staff}
-                                                    onRemove={(e) => {
-                                                        e.stopPropagation();
-                                                        e.preventDefault();
-                                                        if (window.confirm('האם אתה בטוח שברצונך למחוק את המשמרת?')) {
-                                                            removeShift(shift.id).catch(err => {
-                                                                console.error("Failed to delete shift:", err);
-                                                                alert("שגיאה במחיקת המשמרת");
-                                                            });
-                                                            if (editingShiftId === shift.id) {
-                                                                setAddingDate(null);
-                                                                setEditingShiftId(null);
-                                                            }
+                                                    onRemove={() => {
+                                                        removeShift(shift.id).catch(err => {
+                                                            console.error("Failed to delete shift:", err);
+                                                            alert("שגיאה במחיקת המשמרת");
+                                                        });
+                                                        if (editingShiftId === shift.id) {
+                                                            setAddingDate(null);
+                                                            setEditingShiftId(null);
                                                         }
                                                     }}
                                                     onEdit={(e) => {
@@ -561,7 +559,8 @@ export default function RosterView() {
 // ────────────────────────────────────────────────────────────────────────────
 // ShiftCard — fixed RTL layout, no text truncation
 // ────────────────────────────────────────────────────────────────────────────
-function ShiftCard({ shift, staff, onRemove, onEdit }: { shift: Shift; staff: StaffMember[]; onRemove: (e: React.MouseEvent) => void; onEdit: (e: React.MouseEvent) => void }) {
+function ShiftCard({ shift, staff, onRemove, onEdit }: { shift: Shift; staff: StaffMember[]; onRemove: () => void; onEdit: (e: React.MouseEvent) => void }) {
+    const [confirmDelete, setConfirmDelete] = useState(false);
     const roles = shift.roleRequirements ?? [];
     const isFilled = shift.filledCount >= shift.totalRequired;
 
@@ -586,22 +585,44 @@ function ShiftCard({ shift, staff, onRemove, onEdit }: { shift: Shift; staff: St
                             ממתין לאיוש
                         </span>
                     )}
-                    <button
-                        type="button"
-                        onClick={onEdit}
-                        className="text-slate-400 hover:text-brand-blue transition-colors p-2 md:p-1.5 rounded-full hover:bg-blue-50"
-                        title="ערוך משמרת"
-                    >
-                        <Edit2 className="w-5 h-5 md:w-4 md:h-4" />
-                    </button>
-                    <button
-                        type="button"
-                        onClick={onRemove}
-                        className="text-slate-400 hover:text-red-500 transition-colors p-2 md:p-1.5 rounded-full hover:bg-red-50"
-                        title="מחק משמרת"
-                    >
-                        <Trash2 className="w-5 h-5 md:w-4 md:h-4" />
-                    </button>
+                    {confirmDelete ? (
+                        <div className="flex items-center gap-2 bg-red-50 rounded-lg px-2 py-1 border border-red-200 animate-in fade-in zoom-in duration-200">
+                            <span className="text-xs font-bold text-red-700">למחוק?</span>
+                            <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); onRemove(); }}
+                                className="text-xs bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700 transition"
+                            >
+                                כן
+                            </button>
+                            <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setConfirmDelete(false); }}
+                                className="text-xs bg-white text-slate-600 border border-slate-300 px-3 py-1 rounded-md hover:bg-slate-50 transition"
+                            >
+                                לא
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            <button
+                                type="button"
+                                onClick={onEdit}
+                                className="text-slate-400 hover:text-brand-blue transition-colors p-2 md:p-1.5 rounded-full hover:bg-blue-50"
+                                title="ערוך משמרת"
+                            >
+                                <Edit2 className="w-5 h-5 md:w-4 md:h-4" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
+                                className="text-slate-400 hover:text-red-500 transition-colors p-2 md:p-1.5 rounded-full hover:bg-red-50"
+                                title="מחק משמרת"
+                            >
+                                <Trash2 className="w-5 h-5 md:w-4 md:h-4" />
+                            </button>
+                        </>
+                    )}
                 </div>
             </div>
 
