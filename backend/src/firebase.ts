@@ -222,6 +222,8 @@ export async function getStaffPhoneByName(businessId: string, name: string): Pro
     if (!db || !name) return null;
     try {
         const snap = await db.collection('staff').where('businessId', '==', businessId).get();
+        const allNames = snap.docs.map(d => `"${d.data().name}"`).join(', ');
+        console.log(`[FIREBASE] getStaffPhoneByName: searching for "${name}" in [${allNames}]`);
         for (const doc of snap.docs) {
             const data = doc.data();
             if (data.name && data.phone &&
