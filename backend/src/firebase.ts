@@ -73,9 +73,9 @@ function normalizePhone(phone: string): string {
 }
 
 export async function isEmployeePhone(businessId: string, phoneJid: string): Promise<boolean> {
-    if (!db) return true; // Default to true if not connected to db (fallback)
+    if (!db) return true; // Fallback: allow everyone if DB not connected
 
-    // Example format: 972501234567@s.whatsapp.net
+    // WhatsApp JID format: 972501234567@s.whatsapp.net
     const senderPhone = phoneJid.split('@')[0];
     const normalizedSender = normalizePhone(senderPhone);
 
@@ -83,10 +83,12 @@ export async function isEmployeePhone(businessId: string, phoneJid: string): Pro
         const staffSnapshot = await db.collection('staff')
             .where('businessId', '==', businessId)
             .get();
+
         for (const doc of staffSnapshot.docs) {
             const data = doc.data();
             if (data.phone) {
                 const normalizedStaffPhone = normalizePhone(data.phone);
+                console.log(`[AUTH] Comparing ${normalizedSender} vs stored ${normalizedStaffPhone}`);
                 if (normalizedStaffPhone === normalizedSender) {
                     return true;
                 }
@@ -96,5 +98,6 @@ export async function isEmployeePhone(businessId: string, phoneJid: string): Pro
         console.error("Error checking employee phone:", err);
     }
 
+    console.log(`[AUTH] Rejected message from ${normalizedSender} — not in staff list.`);
     return false;
 }
