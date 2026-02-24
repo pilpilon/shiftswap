@@ -220,16 +220,37 @@ export async function getAvailability(
 /** Given a display name, return the normalized phone (972XXXXXXXXX) of the matching staff member, or null if not found */
 export async function getStaffPhoneByName(businessId: string, name: string): Promise<string | null> {
     if (!db || !name) return null;
+
+    // Strip emojis and extra whitespace from the incoming pushName
+    const stripEmojis = (s: string) =>
+        s.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27FF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FEFF}]/gu, '').trim();
+
+    const cleanName = stripEmojis(name).toLowerCase();
+    // Split into meaningful words (≥3 chars) for word-overlap matching
+    const nameWords = cleanName.split(/\s+/).filter(w => w.length >= 3);
+
     try {
         const snap = await db.collection('staff').where('businessId', '==', businessId).get();
         const allNames = snap.docs.map(d => `"${d.data().name}"`).join(', ');
-        console.log(`[FIREBASE] getStaffPhoneByName: searching for "${name}" in [${allNames}]`);
+        console.log(`[FIREBASE] getStaffPhoneByName: searching for "${name}" (cleaned: "${cleanName}") in [${allNames}]`);
+
         for (const doc of snap.docs) {
             const data = doc.data();
-            if (data.name && data.phone &&
-                data.name.trim().toLowerCase() === name.trim().toLowerCase()) {
+            if (!data.name || !data.phone) continue;
+
+            const staffClean = stripEmojis(data.name).toLowerCase();
+            const staffWords = staffClean.split(/\s+/).filter(w => w.length >= 3);
+
+            // Match if: exact clean match, OR any word from pushName appears in staff name, OR vice versa
+            const isMatch =
+                cleanName === staffClean ||
+                nameWords.some(w => staffClean.includes(w)) ||
+                staffWords.some(w => cleanName.includes(w));
+
+            if (isMatch) {
                 let p = data.phone.replace(/[^0-9]/g, '');
                 if (p.startsWith('0')) p = '972' + p.slice(1);
+                console.log(`[FIREBASE] Name match: "${name}" → "${data.name}" → ${p}`);
                 return p;
             }
         }
