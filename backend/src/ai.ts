@@ -17,9 +17,16 @@ function extractAvailabilityDays(text: string): string[] {
 
 /** Returns true if the message appears to be an availability submission */
 function isAvailabilityMessage(text: string): boolean {
-    const hasAvailabilityKeyword = ['פנוי', 'פנויה', 'זמינות', 'יכול לעבוד', 'יכולה לעבוד'].some(kw => text.includes(kw));
-    const hasDays = extractAvailabilityDays(text).length > 0;
-    return hasAvailabilityKeyword && hasDays;
+    const hasAvailabilityKeyword = [
+        'פנוי', 'פנויה', 'זמינות',
+        'יכול לעבוד', 'יכולה לעבוד',
+        'יכול', 'יכולה',
+        'תרשום', 'רשום', 'רשמי',
+        'אפשר', 'לעבוד',
+    ].some(kw => text.includes(kw));
+    const days = extractAvailabilityDays(text);
+    // Accept if: has keyword + at least 1 day, OR has 2+ day names (strong signal on its own)
+    return (hasAvailabilityKeyword && days.length > 0) || days.length >= 2;
 }
 
 export async function processIncomingMessage(businessId: string, remoteJid: string, incomingText: string): Promise<string> {
