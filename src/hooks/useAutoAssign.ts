@@ -82,16 +82,12 @@ export async function runAutoAssign(
         const shiftDayHe = getHebrewDay(shift.date);
 
         // Filter the staff pool: only include those who declared they are available on this day.
-        // If the availability collection is empty (no one submitted), fall back to all staff.
-        const availableStaff = Object.keys(availabilityMap).length === 0
-            ? staff // fallback: no submissions yet → keep legacy MVP behavior
-            : staff.filter(member => {
-                const phone = normalizePhone(member.phone);
-                const memberDays = availabilityMap[phone];
-                // If employee submitted, check if they listed this day.
-                // If employee never submitted at all, exclude them.
-                return memberDays && memberDays.includes(shiftDayHe);
-            });
+        // If employee never submitted at all, exclude them strictly.
+        const availableStaff = staff.filter(member => {
+            const phone = normalizePhone(member.phone);
+            const memberDays = availabilityMap[phone];
+            return memberDays && memberDays.includes(shiftDayHe);
+        });
 
         // Clear previous assignments to avoid duplicate accumulation
         const cleanRequirements = shift.roleRequirements.map(req => ({ ...req, assignedIds: [] }));
