@@ -89,6 +89,13 @@ function normalizePhone(phone: string): string {
 export async function isEmployeePhone(businessId: string, phoneJid: string): Promise<boolean> {
     if (!db) return true; // Fallback: allow everyone if DB not connected
 
+    // WhatsApp Multi-Device sends @lid JIDs (internal identifier) instead of phone numbers
+    // for some contacts. We can't verify the phone, so we allow them through.
+    if (phoneJid.endsWith('@lid')) {
+        console.log(`[AUTH] Allowing @lid message from ${phoneJid} (cannot verify phone)`);
+        return true;
+    }
+
     // WhatsApp JID format: 972501234567@s.whatsapp.net
     const senderPhone = phoneJid.split('@')[0];
     const normalizedSender = normalizePhone(senderPhone);
