@@ -14,6 +14,16 @@
 - [x] Authentication & User Persistence
 - [x] WhatsApp Business API Integration (QR via Baileys/OpenClaw)
 - [x] Notifications System
+- [x] Custom Shift Hours & Per-Role Time Ranges
+- [x] Compact Shift Builder UI (Mobile-Ready)
+
+## AI & WhatsApp Bot
+- [x] Persistent WhatsApp Sessions (Firestore)
+- [x] Intelligent Pre-Filter (Keyword & Employee Phone Auth)
+- [x] Fast-Path Availability Parsing (Bypass LLM)
+- [x] Automated Deadline Reminder Cron Job
+- [x] One-Click CSV Schedule Generation & multi-send
+- [x] Schedule Query Intent ("מה הסידור שלי?")
 
 ## Growth & SEO
 - [x] SEO Meta / OG / Twitter Cards / JSON-LD Schema

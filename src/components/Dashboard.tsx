@@ -8,8 +8,8 @@ import { useAuth } from '../context/AuthContext';
 import StaffView from './views/StaffView';
 import RosterView from './views/RosterView';
 import NegotiationsView from './views/NegotiationsView';
+import SwapView from './views/SwapView';
 import { useShifts } from '../hooks/useShifts';
-
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -41,8 +41,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
     const tabs = [
         { id: 'roster', label: 'סידור עבודה', icon: Calendar },
+        { id: 'swaps', label: 'החלפות (AI)', icon: Zap },
         { id: 'staff', label: 'עובדים', icon: Users },
-        { id: 'negotiations', label: 'משא ומתן AI', icon: MessageSquareText },
+        { id: 'negotiations', label: 'לוג שיחות', icon: MessageSquareText },
         { id: 'settings', label: 'הגדרות', icon: Settings },
     ];
 
@@ -66,9 +67,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                         >
                             <tab.icon className={`w-5 h-5 ${activeTab === tab.id ? 'text-brand-gold' : ''}`} />
                             {tab.label}
-                            {tab.id === 'negotiations' && (
+                            {tab.id === 'swaps' && (
                                 <span className="mr-auto bg-brand-gold text-brand-blue text-xs font-bold px-2 py-0.5 rounded-full">
-                                    2
+                                    1
                                 </span>
                             )}
                         </button>
@@ -161,6 +162,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                             className="max-w-5xl mx-auto h-full"
                         >
                             {activeTab === 'roster' && <RosterView />}
+                            {activeTab === 'swaps' && <SwapView />}
                             {activeTab === 'negotiations' && <NegotiationsView />}
                             {activeTab === 'staff' && <StaffView />}
                             {activeTab === 'settings' && <SettingsView />}
@@ -179,7 +181,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                         >
                             <div className="relative">
                                 <tab.icon className={`w-6 h-6 transition-transform ${activeTab === tab.id ? 'scale-110 text-brand-blue' : ''}`} />
-                                {tab.id === 'negotiations' && (
+                                {tab.id === 'swaps' && (
                                     <span className="absolute -top-1 -right-2 bg-brand-gold w-3 h-3 rounded-full border-2 border-white"></span>
                                 )}
                             </div>
