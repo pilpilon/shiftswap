@@ -86,6 +86,58 @@ function normalizePhone(phone: string): string {
     return clean;
 }
 
+/**
+ * Persist a WhatsApp LID → real phone mapping in Firestore so we only need
+ * to resolve it once (via name lookup) and then always have it available.
+ */
+export async function saveLidMapping(businessId: string, lid: string, phone: string): Promise<void> {
+    if (!db) return;
+    try {
+        await db.collection('businesses').doc(businessId)
+            .collection('lid_mappings').doc(lid).set({ phone, updatedAt: new Date().toISOString() });
+        console.log(`[FIREBASE] Saved LID mapping: ${lid} → ${phone}`);
+    } catch (err) {
+        console.error('[FIREBASE] saveLidMapping error:', err);
+    }
+}
+
+/**
+ * Resolve a WhatsApp @lid JID to a real normalized phone number.
+ * 1. Checks the Firestore LID cache first (fast path).
+ * 2. Falls back to name-based lookup in the staff collection.
+ * 3. If resolved via name, persists the mapping for future calls.
+ * Returns null if resolution fails.
+ */
+export async function resolveLidToPhone(businessId: string, lid: string, senderName?: string): Promise<string | null> {
+    if (!db) return null;
+    const lidKey = lid.split('@')[0]; // strip @lid suffix for use as doc ID
+
+    // 1. Check cache
+    try {
+        const cached = await db.collection('businesses').doc(businessId)
+            .collection('lid_mappings').doc(lidKey).get();
+        if (cached.exists) {
+            const phone = cached.data()?.phone;
+            if (phone) {
+                console.log(`[FIREBASE] LID cache hit: ${lidKey} → ${phone}`);
+                return phone;
+            }
+        }
+    } catch { /* ignore cache errors */ }
+
+    // 2. Fallback: look up by name
+    if (senderName) {
+        const phone = await getStaffPhoneByName(businessId, senderName);
+        if (phone) {
+            // 3. Persist for next time
+            await saveLidMapping(businessId, lidKey, phone);
+            return phone;
+        }
+    }
+
+    return null;
+}
+
 export async function isEmployeePhone(businessId: string, phoneJid: string): Promise<boolean> {
     if (!db) return true; // Fallback: allow everyone if DB not connected
 

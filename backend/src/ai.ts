@@ -2,7 +2,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 
 const ai = new GoogleGenAI({});
 
-import { getBusinessRules, getOpenShifts, saveNegotiationLog, saveAvailability, getCurrentWeekKey, getStaffPhoneByName } from './firebase';
+import { getBusinessRules, getOpenShifts, saveNegotiationLog, saveAvailability, getCurrentWeekKey, resolveLidToPhone } from './firebase';
 
 // Hebrew day names for availability parsing
 const HEBREW_DAYS: Record<string, string> = {
@@ -45,15 +45,14 @@ export async function processIncomingMessage(
         const weekKey = getCurrentWeekKey();
 
         // Resolve real phone: @lid JIDs carry an internal WhatsApp ID, not the phone number.
-        // Use the sender's pushName to look up the real normalized phone in Firestore.
+        // resolveLidToPhone checks Firestore cache, then falls back to name lookup and caches result.
         let phone = remoteJid.split('@')[0];
-        if (remoteJid.endsWith('@lid') && senderName) {
-            const resolved = await getStaffPhoneByName(businessId, senderName);
+        if (remoteJid.endsWith('@lid')) {
+            const resolved = await resolveLidToPhone(businessId, remoteJid, senderName);
             if (resolved) {
                 phone = resolved;
-                console.log(`[AI] Resolved @lid ${remoteJid} → phone ${phone} (via name "${senderName}")`);
             } else {
-                console.warn(`[AI] Could not resolve @lid ${remoteJid} by name "${senderName}" — saving with LID fallback`);
+                console.warn(`[AI] Could not resolve @lid ${remoteJid} — saving with LID fallback`);
             }
         }
         try {
