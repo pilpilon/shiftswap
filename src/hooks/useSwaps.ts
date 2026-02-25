@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getFirestore, collection, onSnapshot } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, doc, deleteDoc } from 'firebase/firestore';
 
 export interface SwapRequest {
     id: string;
@@ -48,5 +48,16 @@ export function useSwaps(businessId?: string) {
         return () => unsubscribe();
     }, [businessId]);
 
-    return { swaps, loading };
+    const deleteSwap = async (swapId: string) => {
+        if (!businessId) return;
+        const db = getFirestore();
+        try {
+            await deleteDoc(doc(db, 'businesses', businessId, 'swaps', swapId));
+        } catch (error) {
+            console.error('Error deleting swap:', error);
+            throw error;
+        }
+    };
+
+    return { swaps, loading, deleteSwap };
 }
