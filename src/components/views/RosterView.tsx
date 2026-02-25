@@ -508,7 +508,7 @@ export default function RosterView() {
                                             {/* Role requirements table */}
                                             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden mb-3">
                                                 {/* Table header — compact */}
-                                                <div className="grid grid-cols-[72px_72px_40px_24px] gap-1.5 px-3 py-2 bg-slate-100 text-xs font-semibold text-slate-500">
+                                                <div className="grid grid-cols-[72px_102px_60px_24px] gap-1.5 px-3 py-2 bg-slate-100 text-xs font-semibold text-slate-500">
                                                     <span>תפקיד</span>
                                                     <span className="text-center">שעות</span>
                                                     <span className="text-center">רמה</span>
@@ -520,7 +520,7 @@ export default function RosterView() {
                                                     {roleRows.map((row, idx) => (
                                                         <div
                                                             key={idx}
-                                                            className="grid grid-cols-[72px_72px_40px_24px] gap-1.5 px-3 py-2 items-center"
+                                                            className="grid grid-cols-[72px_102px_60px_24px] gap-1.5 px-3 py-2 items-center"
                                                         >
                                                             {/* Role name */}
                                                             <div>
@@ -560,7 +560,7 @@ export default function RosterView() {
                                                             {/* Skill level — icon toggle buttons, vertical */}
                                                             <div className="flex flex-col gap-0.5">
                                                                 {(['star', 'standard', 'junior'] as const).map(level => {
-                                                                    const icons = { star: '★', standard: '●', junior: '○' };
+                                                                    const icons = { star: '★★★', standard: '★★', junior: '☆' };
                                                                     const active = row.skillLevel === level;
                                                                     const colors = {
                                                                         star: active ? 'bg-yellow-100 text-yellow-600 border-yellow-300' : 'text-slate-300',
