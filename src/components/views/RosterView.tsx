@@ -106,13 +106,11 @@ export default function RosterView() {
         setRoleRows(prev => prev.map((r, i) => {
             if (i !== index) return r;
             const updated = { ...r, ...patch };
-            // Clamp role times to the shift window
-            if (updated.startTime && updated.startTime < shiftStart) updated.startTime = shiftStart;
-            if (updated.endTime && updated.endTime > shiftEnd) updated.endTime = shiftEnd;
-            if (updated.startTime && updated.endTime && updated.startTime >= updated.endTime) {
-                // Don't allow startTime to be >= endTime
-                updated.startTime = shiftStart;
-            }
+            // Only clamp if the new value is strictly out of the shift window.
+            // Do NOT reset times based on startTime >= endTime comparison — this
+            // breaks overnight shifts where endTime can legitimately be "00:00".
+            if (updated.startTime && shiftStart && updated.startTime < shiftStart) updated.startTime = shiftStart;
+            if (updated.endTime && shiftEnd && updated.endTime > shiftEnd) updated.endTime = shiftEnd;
             return updated;
         }));
     };
