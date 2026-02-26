@@ -1,0 +1,8 @@
+
+C:\Users\Aorus\Documents\shiftswap\backend\src\firebase.ts
+   56:37  error  '_businessId' is defined but never used    @typescript-eslint/no-unused-vars
+  442:5   error  '_originalName' is defined but never used  @typescript-eslint/no-unused-vars
+  443:5   error  '_reason' is defined but never used        @typescript-eslint/no-unused-vars
+
+✖ 3 problems (3 errors, 0 warnings)
+

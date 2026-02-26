@@ -53,7 +53,8 @@ export async function getBusinessRules(businessId: string): Promise<string> {
     return "";
 }
 
-export async function getOpenShifts(businessId: string): Promise<any[]> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function getOpenShifts(_businessId: string): Promise<{ id: string; role: string; date: string; isUrgent: boolean }[]> {
     if (!db) {
         return [
             { id: '1', role: 'waiter', date: 'Friday Night', isUrgent: true }
@@ -223,7 +224,7 @@ export async function getStaffPhoneByName(businessId: string, name: string): Pro
 
     // Strip emojis and extra whitespace from the incoming pushName
     const stripEmojis = (s: string) =>
-        s.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27FF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FEFF}]/gu, '').trim();
+        s.replace(/[^\p{L}\p{N}\s]/gu, '').trim();
 
     const cleanName = stripEmojis(name).toLowerCase();
     // Split into meaningful words (≥3 chars) for word-overlap matching
@@ -378,7 +379,7 @@ export async function registerSwapRequest(
 
     let role = 'חבר צוות';
     let shiftTitle = 'משמרת';
-    let urgency: 'high' | 'medium' | 'low' = 'medium';
+    const urgency: 'high' | 'medium' | 'low' = 'medium';
     let actualDate = dateString;
 
     if (publishedShifts && publishedShifts.length > 0) {
@@ -439,13 +440,15 @@ async function initiateNegotiation(
     shiftTitle: string,
     role: string,
     originalPhone: string,
-    originalName: string,
-    reason: string
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _originalName: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _reason: string
 ) {
     if (!db) return;
     try {
         const staffSnap = await db.collection('staff').where('businessId', '==', businessId).get();
-        const candidates: any[] = [];
+        const candidates: { name: string; phone: string }[] = [];
 
         for (const doc of staffSnap.docs) {
             const emp = doc.data();
@@ -579,7 +582,7 @@ export async function assignSwap(
 
                     const mJid = `${mp}@s.whatsapp.net`;
                     const alertMsg = `ℹ️ עדכון סידור אוטומטי (AI):\n${coveredByName} לקח/ה את משמרת ${swapData.shiftTitle} ב-${swapData.date} במקום ${swapData.originalEmployee}.`;
-                    await sock.sendMessage(mJid, { text: alertMsg }).catch((e: any) => console.error("Manager alert error", e));
+                    await sock.sendMessage(mJid, { text: alertMsg }).catch((e: unknown) => console.error("Manager alert error", e));
                     await new Promise(r => setTimeout(r, 500));
                 }
             }

@@ -1,5 +1,4 @@
-﻿// @ts-nocheck
-import { motion } from 'framer-motion';
+﻿import { motion } from 'framer-motion';
 import { CalendarClock, MessageCircle, Zap, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 

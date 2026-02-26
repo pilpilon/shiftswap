@@ -1,0 +1,33 @@
+
+C:\Users\Aorus\Documents\shiftswap\backend\src\firebase.ts
+   56:37  error  'businessId' is defined but never used              @typescript-eslint/no-unused-vars
+   56:66  error  Unexpected any. Specify a different type            @typescript-eslint/no-explicit-any
+  226:66  error  Unexpected combined character in character class    no-misleading-character-class
+  381:9   error  'urgency' is never reassigned. Use 'const' instead  prefer-const
+  442:5   error  'originalName' is defined but never used            @typescript-eslint/no-unused-vars
+  443:5   error  'reason' is defined but never used                  @typescript-eslint/no-unused-vars
+  448:27  error  Unexpected any. Specify a different type            @typescript-eslint/no-explicit-any
+  582:80  error  Unexpected any. Specify a different type            @typescript-eslint/no-explicit-any
+
+C:\Users\Aorus\Documents\shiftswap\backend\src\firebaseAuthState.ts
+  1:13  error  'admin' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Aorus\Documents\shiftswap\backend\src\scheduler.ts
+  77:27  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Aorus\Documents\shiftswap\backend\src\server.ts
+   91:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  128:58  error  '_' is defined but never used             @typescript-eslint/no-unused-vars
+  128:61  error  Empty block statement                     no-empty
+  177:39  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  244:23  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Aorus\Documents\shiftswap\backend\src\whatsapp.ts
+   7:44  error  Unexpected any. Specify a different type                                                                                                                                                                                                                               @typescript-eslint/no-explicit-any
+   8:45  error  Unexpected any. Specify a different type                                                                                                                                                                                                                               @typescript-eslint/no-explicit-any
+  35:69  error  Unexpected any. Specify a different type                                                                                                                                                                                                                               @typescript-eslint/no-explicit-any
+  64:40  error  React Hook "useFirestoreAuthState" is called in function "initWhatsAppSocket" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use"  react-hooks/rules-of-hooks
+
+✖ 19 problems (19 errors, 0 warnings)
+  1 error and 0 warnings potentially fixable with the `--fix` option.
+

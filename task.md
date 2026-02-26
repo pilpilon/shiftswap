@@ -14,3 +14,8 @@
 - [x] Animate publish button (glow/pulse) when all shifts filled.
 - [x] Add 3-step graphic onboarding modal triggered by "How it works".
 - [x] Update onboarding modal text to clarify WhatsApp submission and CSV export.
+
+# Task: Header Menu Interactions
+- [x] Fix positioning bug in `NotificationsTray` causing it to render cropped/off-screen.
+- [x] Transform header Avatar into a functional dropdown menu.
+- [x] Add standard Profile Dropdown Options (Account Settings, Subscription, Help, Contact, Logout).

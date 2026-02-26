@@ -24,6 +24,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     const [activeTab, setActiveTab] = useState('roster');
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
+    const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [readIds, setReadIds] = useState<Set<string>>(new Set());
 
     // Real notifications derived from live Firestore shifts
@@ -50,6 +51,17 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         { id: 'negotiations', label: 'לוג שיחות', icon: MessageSquareText },
         { id: 'settings', label: 'הגדרות', icon: Settings },
     ];
+
+    // Reference to profile dropdown for 'click outside' handling
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (isProfileOpen && !(e.target as Element).closest('#profile-menu-container')) {
+                setIsProfileOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isProfileOpen]);
 
     return (
         <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
@@ -119,12 +131,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                             {unreadCount > 0 && <span className="absolute top-1 right-2 w-2 h-2 bg-brand-gold rounded-full"></span>}
                         </button>
                     </div>
-                    <NotificationsTray
-                        isOpen={isNotificationsOpen}
-                        onClose={() => setIsNotificationsOpen(false)}
-                        notifications={notifications}
-                        onMarkAllRead={handleMarkAllRead}
-                    />
                 </header>
 
                 {/* Desktop Header */}
@@ -140,20 +146,88 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                             <Bell className="w-6 h-6" />
                             {unreadCount > 0 && <span className="absolute top-1 right-2 w-2.5 h-2.5 bg-brand-gold rounded-full border-2 border-white"></span>}
                         </button>
-                        <div className="w-10 h-10 rounded-full bg-brand-blue/10 border border-brand-blue/20 flex items-center justify-center text-brand-blue font-bold">
-                            מ
+
+                        {/* Profile Dropdown Container */}
+                        <div className="relative" id="profile-menu-container">
+                            <button
+                                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                                className="w-10 h-10 rounded-full bg-brand-blue-50 border border-brand-blue/20 flex items-center justify-center text-brand-blue font-bold hover:bg-brand-blue/10 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-gold"
+                            >
+                                מ
+                            </button>
+
+                            <AnimatePresence>
+                                {isProfileOpen && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.95 }}
+                                        transition={{ duration: 0.15 }}
+                                        className="absolute top-14 left-0 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-50 text-right"
+                                    >
+                                        <div className="px-4 py-2 border-b border-slate-100 mb-1">
+                                            <p className="text-sm font-bold text-slate-800">היי, מנהל</p>
+                                            <p className="text-xs text-slate-500 truncate">{user?.businessId}</p>
+                                        </div>
+
+                                        <button
+                                            onClick={() => { setActiveTab('settings'); setIsProfileOpen(false); }}
+                                            className="w-full text-right px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                                        >
+                                            <Settings className="w-4 h-4 text-slate-400" />
+                                            הגדרות חשבון
+                                        </button>
+
+                                        <button
+                                            onClick={() => { setIsUpgradeOpen(true); setIsProfileOpen(false); }}
+                                            className="w-full text-right px-4 py-2.5 text-sm font-medium text-brand-gold hover:bg-yellow-50/50 transition-colors flex items-center gap-2"
+                                        >
+                                            <Crown className="w-4 h-4" />
+                                            ניהול מנוי ושדרוג
+                                        </button>
+
+                                        <button
+                                            onClick={() => { alert('בקרוב: מרכז עזרה עם מדריכים מקיפים!'); setIsProfileOpen(false); }}
+                                            className="w-full text-right px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                                        >
+                                            <span className="w-4 h-4 flex items-center justify-center text-slate-400 font-bold">?</span>
+                                            מרכז עזרה
+                                        </button>
+
+                                        <a
+                                            href="https://wa.me/972501234567"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={() => setIsProfileOpen(false)}
+                                            className="w-full text-right px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                                        >
+                                            <MessageSquareText className="w-4 h-4 text-emerald-500" />
+                                            צור קשר
+                                        </a>
+
+                                        <div className="h-px bg-slate-100 my-1"></div>
+
+                                        <button
+                                            onClick={() => { onLogout(); setIsProfileOpen(false); }}
+                                            className="w-full text-right px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
+                                        >
+                                            <LogOut className="w-4 h-4" />
+                                            התנתק
+                                        </button>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
                     </div>
-                    {/* Desktop Notifications are positioned relative to the header */}
-                    <div className="absolute top-16 right-8">
-                        <NotificationsTray
-                            isOpen={isNotificationsOpen}
-                            onClose={() => setIsNotificationsOpen(false)}
-                            notifications={notifications}
-                            onMarkAllRead={handleMarkAllRead}
-                        />
-                    </div>
                 </header>
+
+                {/* Fixed Global Notifications Tray */}
+                <NotificationsTray
+                    isOpen={isNotificationsOpen}
+                    onClose={() => setIsNotificationsOpen(false)}
+                    notifications={notifications}
+                    onMarkAllRead={handleMarkAllRead}
+                />
 
                 {/* Scrollable Content Area */}
                 <div className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
@@ -425,7 +499,7 @@ function SettingsView() {
 
                                                             startPolling();
 
-                                                        } catch (err) {
+                                                        } catch {
                                                             alert("Backend server not running.");
                                                             setIsGenerating(false);
                                                         }

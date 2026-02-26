@@ -74,7 +74,8 @@ async function runReminderCheck() {
             try {
                 await sock.sendMessage(jid, { text: message });
                 console.log(`[SCHEDULER] Nudge sent to ${name} (${jid})`);
-            } catch (err: any) {
+            } catch (error) {
+                const err = error as Error;
                 console.error(`[SCHEDULER] Failed to nudge ${name}:`, err.message);
             }
         }

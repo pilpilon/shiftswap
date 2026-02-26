@@ -4,8 +4,8 @@ import QRCode from 'qrcode';
 import { useFirestoreAuthState, deleteFirestoreAuthState } from './firebaseAuthState';
 
 // Store active sockets
-export const activeSockets: Record<string, any> = {};
-export const pendingSockets: Record<string, any> = {};
+export const activeSockets: Record<string, ReturnType<typeof makeWASocket>> = {};
+export const pendingSockets: Record<string, ReturnType<typeof makeWASocket>> = {};
 export const qrCodes: Record<string, string> = {};
 
 // ── Conversation tracking ────────────────────────────────────────────────────
@@ -32,7 +32,7 @@ function closeConversation(businessId: string, jid: string) {
 }
 
 /** Open/refresh a conversation after the bot sends a reply. */
-function refreshConversation(businessId: string, jid: string, sock: any) {
+function refreshConversation(businessId: string, jid: string, sock: ReturnType<typeof makeWASocket>) {
     // Cancel any existing timers first
     closeConversation(businessId, jid);
 
@@ -61,6 +61,7 @@ function refreshConversation(businessId: string, jid: string, sock: any) {
 export const initWhatsAppSocket = async (businessId: string) => {
     console.log(`[WHATSAPP] Starting socket for business ${businessId}`);
 
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const { state, saveCreds } = await useFirestoreAuthState(businessId);
     const { version } = await fetchLatestBaileysVersion();
 

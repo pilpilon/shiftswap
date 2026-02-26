@@ -18,6 +18,7 @@ export function useNegotiations(businessId: string | undefined) {
 
     useEffect(() => {
         if (!businessId) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setLogs([]);
             setLoading(false);
             return;

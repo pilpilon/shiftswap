@@ -10,24 +10,7 @@ export interface Notification {
     read: boolean;
 }
 
-export const mockNotifications: Notification[] = [
-    {
-        id: '1',
-        title: 'משמרת אוישה בהצלחה',
-        message: 'יוני אישר את משמרת הערב ביום ראשון. הבוט סגר את המשא ומתן.',
-        time: 'לפני 5 דקות',
-        type: 'success',
-        read: false,
-    },
-    {
-        id: '2',
-        title: 'התראה מחוסר באיש צוות',
-        message: 'בעוד 4 שעות מתחילה משמרת ערב ויש חוסר של עובד אחד.',
-        time: 'לפני שעה',
-        type: 'alert',
-        read: false,
-    }
-];
+
 
 export function NotificationsTray({
     isOpen,
@@ -58,7 +41,7 @@ export function NotificationsTray({
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.95 }}
                         transition={{ duration: 0.2 }}
-                        className="absolute top-16 left-4 md:left-8 w-80 md:w-96 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden"
+                        className="fixed top-16 left-4 md:left-8 w-80 md:w-96 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden"
                     >
                         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                             <div className="flex items-center gap-2">

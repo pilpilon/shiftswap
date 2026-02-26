@@ -1,4 +1,4 @@
-import * as admin from 'firebase-admin';
+
 import { AuthenticationCreds, AuthenticationState, SignalDataTypeMap, initAuthCreds, BufferJSON } from '@whiskeysockets/baileys';
 import { getFirestore } from './firebase';
 

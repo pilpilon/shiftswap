@@ -12,6 +12,20 @@ export default function Paywall() {
     const [paddle, setPaddle] = useState<Paddle>();
     const [loading, setLoading] = useState(false);
 
+    const upgradeUserToPro = async () => {
+        if (!user?.id) return;
+        setLoading(true);
+        try {
+            await updateDoc(doc(db, 'users', user.id), {
+                isPro: true
+            });
+            window.location.reload(); // Reload to refresh auth context and enter dashboard
+        } catch (err) {
+            console.error("Error upgrading user:", err);
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
         const initPaddle = async () => {
             const clientToken = import.meta.env.VITE_PADDLE_CLIENT_TOKEN;
@@ -34,21 +48,10 @@ export default function Paywall() {
             }
         };
         initPaddle();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const upgradeUserToPro = async () => {
-        if (!user?.id) return;
-        setLoading(true);
-        try {
-            await updateDoc(doc(db, 'users', user.id), {
-                isPro: true
-            });
-            window.location.reload(); // Reload to refresh auth context and enter dashboard
-        } catch (err) {
-            console.error("Error upgrading user:", err);
-            setLoading(false);
-        }
-    };
+
 
     const handleSubscribe = async () => {
         if (paddle) {

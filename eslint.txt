@@ -1,0 +1,160 @@
+
+C:\Users\Aorus\Documents\shiftswap\src\components\Dashboard.tsx
+  502:66  error  'err' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Aorus\Documents\shiftswap\src\components\LandingPage.tsx
+  1:1  error  Do not use "@ts-nocheck" because it alters compilation errors  @typescript-eslint/ban-ts-comment
+
+C:\Users\Aorus\Documents\shiftswap\src\components\Login.tsx
+   33:23  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  165:47  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Aorus\Documents\shiftswap\src\components\Notifications.tsx
+  13:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\Aorus\Documents\shiftswap\src\components\Paywall.tsx
+  26:39  error    Error: Cannot access variable before it is declared
+
+`upgradeUserToPro` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+C:\Users\Aorus\Documents\shiftswap\src\components\Paywall.tsx:26:39
+  24 |                             if (data.name === 'checkout.completed') {
+  25 |                                 // Payment successful
+> 26 |                                 await upgradeUserToPro();
+     |                                       ^^^^^^^^^^^^^^^^ `upgradeUserToPro` accessed before it is declared
+  27 |                             }
+  28 |                         }
+  29 |                     });
+
+C:\Users\Aorus\Documents\shiftswap\src\components\Paywall.tsx:39:5
+  37 |     }, []);
+  38 |
+> 39 |     const upgradeUserToPro = async () => {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 40 |         if (!user?.id) return;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 41 |         setLoading(true);
+     …
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 50 |         }
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 51 |     };
+     | ^^^^^^^ `upgradeUserToPro` is declared here
+  52 |
+  53 |     const handleSubscribe = async () => {
+  54 |         if (paddle) {  react-hooks/immutability
+  37:8   warning  React Hook useEffect has a missing dependency: 'upgradeUserToPro'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          react-hooks/exhaustive-deps
+
+C:\Users\Aorus\Documents\shiftswap\src\context\AuthContext.tsx
+  139:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\Aorus\Documents\shiftswap\src\hooks\useAvailability.ts
+  26:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Aorus\Documents\shiftswap\src\hooks\useAvailability.ts:26:13
+  24 |     useEffect(() => {
+  25 |         if (!businessId) {
+> 26 |             setAvailability({});
+     |             ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  27 |             return;
+  28 |         }
+  29 |  react-hooks/set-state-in-effect
+
+C:\Users\Aorus\Documents\shiftswap\src\hooks\useNegotiations.ts
+  21:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Aorus\Documents\shiftswap\src\hooks\useNegotiations.ts:21:13
+  19 |     useEffect(() => {
+  20 |         if (!businessId) {
+> 21 |             setLogs([]);
+     |             ^^^^^^^ Avoid calling setState() directly within an effect
+  22 |             setLoading(false);
+  23 |             return;
+  24 |         }  react-hooks/set-state-in-effect
+
+C:\Users\Aorus\Documents\shiftswap\src\hooks\useSettings.ts
+  34:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Aorus\Documents\shiftswap\src\hooks\useSettings.ts:34:13
+  32 |     useEffect(() => {
+  33 |         if (!user?.id) {
+> 34 |             setLoading(false);
+     |             ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  35 |             return;
+  36 |         }
+  37 |  react-hooks/set-state-in-effect
+
+C:\Users\Aorus\Documents\shiftswap\src\hooks\useShifts.ts
+  41:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Aorus\Documents\shiftswap\src\hooks\useShifts.ts:41:13
+  39 |     useEffect(() => {
+  40 |         if (!businessId) {
+> 41 |             setShifts([]);
+     |             ^^^^^^^^^ Avoid calling setState() directly within an effect
+  42 |             setLoading(false);
+  43 |             return;
+  44 |         }  react-hooks/set-state-in-effect
+
+C:\Users\Aorus\Documents\shiftswap\src\hooks\useStaff.ts
+  22:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Aorus\Documents\shiftswap\src\hooks\useStaff.ts:22:13
+  20 |     useEffect(() => {
+  21 |         if (!businessId) {
+> 22 |             setStaff([]);
+     |             ^^^^^^^^ Avoid calling setState() directly within an effect
+  23 |             setLoading(false);
+  24 |             return;
+  25 |         }  react-hooks/set-state-in-effect
+
+C:\Users\Aorus\Documents\shiftswap\src\hooks\useSwaps.ts
+  24:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Aorus\Documents\shiftswap\src\hooks\useSwaps.ts:24:13
+  22 |     useEffect(() => {
+  23 |         if (!businessId) {
+> 24 |             setSwaps([]);
+     |             ^^^^^^^^ Avoid calling setState() directly within an effect
+  25 |             setLoading(false);
+  26 |             return;
+  27 |         }  react-hooks/set-state-in-effect
+
+✖ 14 problems (13 errors, 1 warning)
+

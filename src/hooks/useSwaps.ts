@@ -21,6 +21,7 @@ export function useSwaps(businessId?: string) {
 
     useEffect(() => {
         if (!businessId) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setSwaps([]);
             setLoading(false);
             return;

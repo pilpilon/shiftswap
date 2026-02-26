@@ -30,7 +30,8 @@ export default function Login() {
                 await register(email, password, name, businessName);
             }
             // Navigate is handled automatically by App.tsx observing isAuthenticated
-        } catch (err: any) {
+        } catch (error) {
+            const err = error as Error;
             console.error(err);
             setError(err.message || 'שגיאה בהתחברות. אנא נסה שוב.');
         } finally {
@@ -162,7 +163,8 @@ export default function Login() {
                                 setLoading(true);
                                 try {
                                     await loginWithGoogle();
-                                } catch (err: any) {
+                                } catch (error) {
+                                    const err = error as Error;
                                     console.error(err);
                                     setError(err.message || 'שגיאה בהתחברות עם גוגל');
                                 } finally {

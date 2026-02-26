@@ -23,6 +23,7 @@ export function useAvailability(businessId?: string) {
 
     useEffect(() => {
         if (!businessId) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setAvailability({});
             return;
         }

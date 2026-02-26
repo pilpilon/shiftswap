@@ -38,6 +38,7 @@ export function useShifts(businessId: string | undefined) {
 
     useEffect(() => {
         if (!businessId) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setShifts([]);
             setLoading(false);
             return;

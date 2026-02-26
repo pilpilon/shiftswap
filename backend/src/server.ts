@@ -88,7 +88,8 @@ app.post('/api/whatsapp/pairing-code', async (req, res) => {
 
         const code = await getPairingCode(businessId, phoneNumber);
         res.json({ code });
-    } catch (err: any) {
+    } catch (error) {
+        const err = error as Error;
         console.error("Pairing code error:", err);
         res.status(500).json({ error: err.message || 'Failed to request pairing code' });
     }
@@ -125,7 +126,7 @@ app.post('/api/whatsapp/disconnect', async (req, res) => {
 
     // Also clear any pending socket
     if (pendingSockets[businessId]) {
-        try { pendingSockets[businessId].end(); } catch (_) { }
+        try { pendingSockets[businessId].end(undefined); } catch { /* Ignore */ }
         delete pendingSockets[businessId];
     }
     delete qrCodes[businessId];
@@ -174,7 +175,7 @@ app.post('/api/whatsapp/publish-schedule', async (req, res) => {
     const recipientJids = new Map<string, string>(); // jid → name
 
     // For schedule querying
-    const scheduleMap: Record<string, any[]> = {}; // normalizedPhone -> shifts
+    const scheduleMap: Record<string, { date: string, hours: string, role: string }[]> = {}; // normalizedPhone -> shifts
     let weekKeyFromSchedule = '';
 
     const sortedShifts = [...shifts].sort((a, b) => a.date.localeCompare(b.date));
@@ -241,7 +242,8 @@ app.post('/api/whatsapp/publish-schedule', async (req, res) => {
             });
             sentCount++;
             console.log(`[PUBLISH] Sent shared schedule to ${name} (${jid})`);
-        } catch (err: any) {
+        } catch (error) {
+            const err = error as Error;
             console.error(`[PUBLISH] Failed to send to ${name}:`, err.message);
             errors.push(`${name}: ${err.message}`);
         }
