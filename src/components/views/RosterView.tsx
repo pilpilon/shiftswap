@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../../src/context/AuthContext';
 import { useShifts, type Shift, type RoleRequirement, type SkillLevel, SKILL_LEVEL_LABELS } from '../../../src/hooks/useShifts';
 import { useStaff, type StaffMember } from '../../../src/hooks/useStaff';
 import { useSettings } from '../../../src/hooks/useSettings';
+import { useAvailability } from '../../../src/hooks/useAvailability';
 import { runAutoAssign, WEEKDAY_LABELS_HE, isDeadlinePassed } from '../../../src/hooks/useAutoAssign';
 import {
     Calendar, Plus, CheckCircle2, Loader2, Trash2,
-    ChevronRight, ChevronLeft, Edit2, Wand2, Settings2, AlertCircle, Send
+    ChevronRight, ChevronLeft, Edit2, Wand2, Settings2, AlertCircle, Send, HelpCircle, X, Smartphone, Bot
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Config
@@ -64,6 +66,7 @@ export default function RosterView() {
     const { shifts, loading, error, addShift, removeShift, updateShift } = useShifts(user?.businessId);
     const { staff } = useStaff(user?.businessId);
     const { settings, updateSettings } = useSettings();
+    const { availability } = useAvailability(user?.businessId);
 
     const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => getStartOfWeek(new Date()));
     const [addingDate, setAddingDate] = useState<string | null>(null);
@@ -74,6 +77,40 @@ export default function RosterView() {
     const [isPublishing, setIsPublishing] = useState(false);
     const [showPublishConfirm, setShowPublishConfirm] = useState(false);
     const [publishUnassignedCount, setPublishUnassignedCount] = useState(0);
+    const [showHowItWorks, setShowHowItWorks] = useState(false);
+
+    // Derived states
+    const activeStaffWithPhones = staff.filter(s => s.phone && s.phone.trim() !== '');
+    const submittedCount = activeStaffWithPhones.filter(s => {
+        let clean = s.phone.replace(/\D/g, '');
+        if (clean.startsWith('0')) clean = '972' + clean.slice(1);
+        return availability[clean] !== undefined;
+    }).length;
+
+    const allSubmitted = activeStaffWithPhones.length > 0 && submittedCount === activeStaffWithPhones.length;
+
+    // Manage local notification
+    const hasNotifiedRef = useRef(false);
+    useEffect(() => {
+        if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+            Notification.requestPermission();
+        }
+    }, []);
+
+    useEffect(() => {
+        if (allSubmitted && !hasNotifiedRef.current) {
+            hasNotifiedRef.current = true;
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('ShiftSwap AI', {
+                    body: 'כל העובדים הגישו זמינות! ניתן לבצע שיבוץ אוטומטי כעת.',
+                    icon: '/vite.svg',
+                    dir: 'rtl'
+                });
+            }
+        } else if (!allSubmitted) {
+            hasNotifiedRef.current = false;
+        }
+    }, [allSubmitted]);
 
     // Form state
     const [newDate, setNewDate] = useState('');
@@ -248,6 +285,9 @@ export default function RosterView() {
     const deadline = settings.submissionDeadlineDay ?? -1;
     const deadlinePassed = isDeadlinePassed(deadline);
 
+    const shouldRecommendAssign = (allSubmitted || deadlinePassed) && shifts.length > 0;
+    const allShiftsFilled = shifts.length > 0 && shifts.every(s => s.filledCount >= s.totalRequired);
+
     // ── Render ────────────────────────────────────────────────────────────────
     return (
         <div className="space-y-4" dir="rtl">
@@ -255,10 +295,20 @@ export default function RosterView() {
             <div className="flex flex-col gap-4 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
                 {/* Top Row: Title & Week Nav */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                        <Calendar className="w-6 h-6 text-brand-blue" />
-                        יומן שבועי
-                    </h2>
+                    <div className="flex items-center gap-3">
+                        <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                            <Calendar className="w-6 h-6 text-brand-blue" />
+                            יומן שבועי
+                        </h2>
+                        <button
+                            onClick={() => setShowHowItWorks(true)}
+                            className="flex items-center gap-1.5 text-xs font-bold text-brand-blue bg-blue-50 px-3 py-1.5 rounded-full hover:bg-blue-100 transition-colors border border-blue-200 shadow-sm whitespace-nowrap"
+                        >
+                            <HelpCircle className="w-4 h-4" />
+                            <span className="hidden sm:inline">איך זה עובד?</span>
+                            <span className="sm:hidden">עזרה</span>
+                        </button>
+                    </div>
 
                     {/* Week navigator */}
                     <div className="flex items-center gap-1 bg-slate-50 rounded-xl border border-slate-200 p-1 self-start sm:self-auto">
@@ -303,11 +353,14 @@ export default function RosterView() {
                     <button
                         onClick={handleAutoAssign}
                         disabled={isAssigning}
-                        className="flex-1 sm:flex-none justify-center flex items-center gap-1.5 bg-brand-blue hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all"
+                        className={`flex-1 sm:flex-none justify-center flex items-center gap-1.5 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all ${shouldRecommendAssign
+                            ? 'bg-gradient-to-r from-brand-gold to-yellow-500 text-slate-900 border-none animate-[pulse_2s_ease-in-out_infinite] ring-2 ring-brand-gold ring-offset-2 hover:brightness-110'
+                            : 'bg-brand-blue hover:bg-blue-700'
+                            }`}
                     >
                         {isAssigning
-                            ? <Loader2 className="w-4 h-4 animate-spin" />
-                            : <Wand2 className="w-4 h-4" />
+                            ? <Loader2 className={`w-4 h-4 animate-spin ${shouldRecommendAssign ? 'text-slate-900' : ''}`} />
+                            : <Wand2 className={`w-4 h-4 ${shouldRecommendAssign ? 'text-slate-900' : ''}`} />
                         }
                         שיבוץ אוטומטי
                     </button>
@@ -345,7 +398,10 @@ export default function RosterView() {
                         <button
                             onClick={handlePublish}
                             disabled={isPublishing || isAssigning}
-                            className="flex-1 sm:flex-none justify-center flex items-center gap-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all"
+                            className={`flex-1 sm:flex-none justify-center flex items-center gap-1.5 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all ${allShiftsFilled
+                                ? 'bg-red-600 animate-[pulse_2s_ease-in-out_infinite] ring-2 ring-red-400 ring-offset-2 hover:bg-red-500'
+                                : 'bg-red-600 hover:bg-red-700'
+                                }`}
                             title="פרסם סידור"
                         >
                             {isPublishing
@@ -393,8 +449,26 @@ export default function RosterView() {
                     </div>
                 )}
 
-                {/* ── Deadline status banner ───────────────────────────────── */}
-                {deadline >= 0 && deadlinePassed && (
+                {/* ── Banners ───────────────────────────────── */}
+                {allShiftsFilled && !isAssigning && !isPublishing && (
+                    <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-emerald-800 animate-in fade-in slide-in-from-top-2">
+                        <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-500" />
+                        <span>
+                            איזה יופי! כל המשמרות מאויישות ומוכנות. אפשר עכשיו לשגר את הסידור לעובדים בוואטסאפ.
+                        </span>
+                    </div>
+                )}
+
+                {allSubmitted && !allShiftsFilled && (
+                    <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-emerald-800 animate-in fade-in slide-in-from-top-2">
+                        <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-500" />
+                        <span>
+                            כל העובדים הגישו זמינות! מומלץ לבצע <button onClick={handleAutoAssign} disabled={isAssigning} className="underline hover:no-underline font-bold decoration-2 underline-offset-4">שיבוץ אוטומטי</button> כעת.
+                        </span>
+                    </div>
+                )}
+
+                {deadline >= 0 && deadlinePassed && !allSubmitted && !allShiftsFilled && (
                     <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-sm text-amber-800">
                         <AlertCircle className="w-4 h-4 shrink-0" />
                         <span>
@@ -672,6 +746,97 @@ export default function RosterView() {
                     )}
                 </div>
             </div>
+            {/* ── How It Works Modal ────────────────────────────────────── */}
+            <AnimatePresence>
+                {showHowItWorks && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" dir="rtl">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                            className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative overflow-hidden"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <button
+                                onClick={() => setShowHowItWorks(false)}
+                                className="absolute top-4 left-4 p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+
+                            <div className="text-center mb-8">
+                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand-blue/10 text-brand-blue mb-4">
+                                    <Bot className="w-8 h-8" />
+                                </div>
+                                <h3 className="text-2xl font-black text-slate-800">איך המערכת עובדת?</h3>
+                                <p className="text-slate-500 mt-2 font-medium">שלושה שלבים פשוטים לניהול המשמרות שלך</p>
+                            </div>
+
+                            <div className="space-y-6 relative">
+                                {/* Connecting line */}
+                                <div className="absolute top-8 bottom-8 right-6 w-0.5 bg-slate-100 -z-10"></div>
+
+                                {/* Step 1 */}
+                                <div className="flex gap-4">
+                                    <div className="relative">
+                                        <div className="w-12 h-12 rounded-full bg-white border-4 border-slate-100 shadow-sm flex items-center justify-center text-xl font-black text-slate-400">1</div>
+                                    </div>
+                                    <div className="flex-1 pt-1.5">
+                                        <h4 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                            <Calendar className="w-5 h-5 text-brand-blue" />
+                                            הגדרת משמרות
+                                        </h4>
+                                        <p className="text-sm text-slate-600 mt-1 leading-relaxed">
+                                            הזן את המשמרות הנדרשות לכל יום בשבוע (לדוגמה: 2 מלצרים, טבח בוקר).
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Step 2 */}
+                                <div className="flex gap-4">
+                                    <div className="relative">
+                                        <div className="w-12 h-12 rounded-full bg-white border-4 border-blue-100 shadow-sm flex items-center justify-center text-xl font-black text-blue-500">2</div>
+                                    </div>
+                                    <div className="flex-1 pt-1.5">
+                                        <h4 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                            <Smartphone className="w-5 h-5 text-blue-500" />
+                                            איסוף זמינות מעובדים
+                                        </h4>
+                                        <p className="text-sm text-slate-600 mt-1 leading-relaxed">
+                                            העובדים שלך סורקים את הקוד או שולחים הודעה לוואטסאפ של העסק עם הימים שהם פנויים השבוע. המערכת קולטת הכל אוטומטית!
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Step 3 */}
+                                <div className="flex gap-4">
+                                    <div className="relative">
+                                        <div className="w-12 h-12 rounded-full bg-white border-4 border-emerald-100 shadow-sm flex items-center justify-center text-xl font-black text-emerald-500">3</div>
+                                    </div>
+                                    <div className="flex-1 pt-1.5">
+                                        <h4 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                            <Wand2 className="w-5 h-5 text-emerald-500" />
+                                            שיבוץ ושליחה
+                                        </h4>
+                                        <p className="text-sm text-slate-600 mt-1 leading-relaxed">
+                                            לחיצה על <span className="font-bold">"שיבוץ אוטומטי"</span> תסדר את כולם בצורה אופטימלית (ותוכל לתקן ידנית). לאחר מכן <span className="font-bold text-red-600">"שגר סידור"</span> ישלח את המשמרות לעובדים!
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mt-8 pt-6 border-t border-slate-100">
+                                <button
+                                    onClick={() => setShowHowItWorks(false)}
+                                    className="w-full bg-brand-blue hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-sm active:scale-95"
+                                >
+                                    הבנתי, תודה!
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

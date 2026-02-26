@@ -10,6 +10,8 @@ import RosterView from './views/RosterView';
 import NegotiationsView from './views/NegotiationsView';
 import SwapView from './views/SwapView';
 import { useShifts } from '../hooks/useShifts';
+import { useSwaps } from '../hooks/useSwaps';
+
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -26,7 +28,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
     // Real notifications derived from live Firestore shifts
     const { shifts } = useShifts(user?.businessId);
+    const { swaps } = useSwaps(user?.businessId);
     const rawNotifications = useNotifications(shifts);
+
 
     // Allow the user to mark individual notification IDs as read
     const notifications = rawNotifications.map(n => ({
@@ -67,11 +71,12 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                         >
                             <tab.icon className={`w-5 h-5 ${activeTab === tab.id ? 'text-brand-gold' : ''}`} />
                             {tab.label}
-                            {tab.id === 'swaps' && (
+                            {tab.id === 'swaps' && swaps.length > 0 && (
                                 <span className="mr-auto bg-brand-gold text-brand-blue text-xs font-bold px-2 py-0.5 rounded-full">
-                                    1
+                                    {swaps.length}
                                 </span>
                             )}
+
                         </button>
                     ))}
                 </nav>
@@ -181,9 +186,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                         >
                             <div className="relative">
                                 <tab.icon className={`w-6 h-6 transition-transform ${activeTab === tab.id ? 'scale-110 text-brand-blue' : ''}`} />
-                                {tab.id === 'swaps' && (
+                                {tab.id === 'swaps' && swaps.length > 0 && (
                                     <span className="absolute -top-1 -right-2 bg-brand-gold w-3 h-3 rounded-full border-2 border-white"></span>
                                 )}
+
                             </div>
                             <span className="text-[10px] font-medium">{tab.label}</span>
                             {activeTab === tab.id && (
