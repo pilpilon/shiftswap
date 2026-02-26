@@ -8,6 +8,14 @@ import PrivacyPolicy from './components/legal/PrivacyPolicy';
 import TermsOfService from './components/legal/TermsOfService';
 import RefundPolicy from './components/legal/RefundPolicy';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { useEffect } from 'react';
+
+// Global declaration for the prompt
+declare global {
+  interface Window {
+    deferredPrompt: any;
+  }
+}
 
 function AppContent() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -38,6 +46,18 @@ function AppContent() {
 }
 
 export default function App() {
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      window.deferredPrompt = e;
+      // Dispatch a custom event so other components can react
+      window.dispatchEvent(new Event('pwa-installable'));
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
   return (
     <BrowserRouter>
       <AuthProvider>

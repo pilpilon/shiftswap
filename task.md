@@ -19,3 +19,17 @@
 - [x] Fix positioning bug in `NotificationsTray` causing it to render cropped/off-screen.
 - [x] Transform header Avatar into a functional dropdown menu.
 - [x] Add standard Profile Dropdown Options (Account Settings, Subscription, Help, Contact, Logout).
+
+# Task: Fix Lint Errors
+- [x] Fix unused variables and `any` types across frontend.
+- [x] Fix exhaustive hooks react warnings.
+- [x] Fix backend `any` types and unused parameters.
+- [x] Resolve React Hook rule violations in backend.
+- [x] Push all changes to Git.
+
+# Task: PWA Installation Prompt
+- [x] Add `manifest.webmanifest` file for PWA configuration.
+- [x] Add `vite.config.ts` PWA plugin configuration.
+- [x] Implement `beforeinstallprompt` event listener in `App.tsx`.
+- [x] Add "Install App" button to the header/profile menu.
+- [x] Test PWA installation flow on mobile and desktop.

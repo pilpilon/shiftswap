@@ -1,0 +1,23 @@
+{
+    "name": "ShiftSwap AI",
+    "short_name": "ShiftSwap",
+    "description": "Smart WhatsApp shift management.",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#020617",
+    "theme_color": "#CCFF00",
+    "icons": [
+        {
+            "src": "/icon.svg",
+            "sizes": "192x192",
+            "type": "image/svg+xml"
+        },
+        {
+            "src": "/icon.svg",
+            "sizes": "512x512",
+            "type": "image/svg+xml"
+        }
+    ],
+    "lang": "he",
+    "dir": "rtl"
+}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar, Users, MessageSquareText, Settings, LogOut, Bell, CheckCircle2, ShieldAlert, Save, Zap, Crown } from 'lucide-react';
+import { Calendar, Users, MessageSquareText, Settings, LogOut, Bell, CheckCircle2, ShieldAlert, Save, Zap, Crown, Download } from 'lucide-react';
 import { NotificationsTray } from './Notifications';
 import { useNotifications } from '../hooks/useNotifications';
 import UpgradeModal from './UpgradeModal';
@@ -26,6 +26,27 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [readIds, setReadIds] = useState<Set<string>>(new Set());
+    const [isInstallable, setIsInstallable] = useState(false);
+
+    useEffect(() => {
+        if (window.deferredPrompt) {
+            setIsInstallable(true);
+        }
+        const handleInstallable = () => setIsInstallable(true);
+        window.addEventListener('pwa-installable', handleInstallable);
+        return () => window.removeEventListener('pwa-installable', handleInstallable);
+    }, []);
+
+    const handleInstallClick = async () => {
+        setIsProfileOpen(false);
+        if (!window.deferredPrompt) return;
+        window.deferredPrompt.prompt();
+        const { outcome } = await window.deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            setIsInstallable(false);
+            window.deferredPrompt = null;
+        }
+    };
 
     // Real notifications derived from live Firestore shifts
     const { shifts } = useShifts(user?.businessId);
@@ -169,6 +190,16 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                                             <p className="text-sm font-bold text-slate-800">היי, מנהל</p>
                                             <p className="text-xs text-slate-500 truncate">{user?.businessId}</p>
                                         </div>
+
+                                        {isInstallable && (
+                                            <button
+                                                onClick={handleInstallClick}
+                                                className="w-full text-right px-4 py-2.5 text-sm font-bold text-brand-blue bg-blue-50 hover:bg-blue-100 transition-colors flex items-center gap-2 mb-1"
+                                            >
+                                                <Download className="w-4 h-4" />
+                                                התקן אפליקציה
+                                            </button>
+                                        )}
 
                                         <button
                                             onClick={() => { setActiveTab('settings'); setIsProfileOpen(false); }}
