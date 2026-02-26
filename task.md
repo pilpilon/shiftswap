@@ -13,3 +13,4 @@
 - [x] Animate auto-assign button (glow/pulse) when action recommended.
 - [x] Animate publish button (glow/pulse) when all shifts filled.
 - [x] Add 3-step graphic onboarding modal triggered by "How it works".
+- [x] Update onboarding modal text to clarify WhatsApp submission and CSV export.

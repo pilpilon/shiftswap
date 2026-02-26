@@ -803,7 +803,7 @@ export default function RosterView() {
                                             איסוף זמינות מעובדים
                                         </h4>
                                         <p className="text-sm text-slate-600 mt-1 leading-relaxed">
-                                            העובדים שלך סורקים את הקוד או שולחים הודעה לוואטסאפ של העסק עם הימים שהם פנויים השבוע. המערכת קולטת הכל אוטומטית!
+                                            העובדים שלך פשוט שולחים הודעה לוואטסאפ של העסק עם הימים שהם פנויים השבוע. המערכת תעדכן את כולם באופן אוטומטי!
                                         </p>
                                     </div>
                                 </div>
@@ -819,7 +819,7 @@ export default function RosterView() {
                                             שיבוץ ושליחה
                                         </h4>
                                         <p className="text-sm text-slate-600 mt-1 leading-relaxed">
-                                            לחיצה על <span className="font-bold">"שיבוץ אוטומטי"</span> תסדר את כולם בצורה אופטימלית (ותוכל לתקן ידנית). לאחר מכן <span className="font-bold text-red-600">"שגר סידור"</span> ישלח את המשמרות לעובדים!
+                                            לחיצה על <span className="font-bold">"שיבוץ אוטומטי"</span> תסדר את כולם בצורה אופטימלית (ותוכל לתקן ידנית). לאחר מכן <span className="font-bold text-red-600">"שגר סידור"</span> ישלח את המשמרות <span className="font-bold">וקובץ אקסל מרוכז</span> לעובדים!
                                         </p>
                                     </div>
                                 </div>
