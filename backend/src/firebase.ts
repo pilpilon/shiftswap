@@ -301,6 +301,40 @@ export async function getStaffWhoHaventSubmitted(
     return missing;
 }
 
+/** Finds the ID of the pending swap offer currently assigned to this employee's phone to answer yes/no. */
+export async function getActiveOfferId(businessId: string, phone: string): Promise<string | null> {
+    if (!db) return null;
+    try {
+        const snap = await db.collection('businesses')
+            .doc(businessId)
+            .collection('swaps')
+            .where('status', '==', 'pending')
+            .where('currentlyAsking', '==', phone)
+            .limit(1)
+            .get();
+        if (!snap.empty) {
+            return snap.docs[0].id;
+        }
+    } catch (err) {
+        console.error("Failed to get active offer id:", err);
+    }
+    return null;
+}
+
+/** Registers that an employee explicitly declined a swap offer. */
+export async function rejectShiftSwap(businessId: string, phone: string, swapId: string): Promise<void> {
+    if (!db) return;
+    try {
+        const ref = db.collection('businesses').doc(businessId).collection('swaps').doc(swapId);
+        await ref.update({
+            rejectedBy: admin.firestore.FieldValue.arrayUnion(phone)
+        });
+        console.log(`[FIREBASE] ${phone} explicitly rejected swap offer ${swapId}`);
+    } catch (err) {
+        console.error("Failed to reject shift swap:", err);
+    }
+}
+
 // ─── Published Schedule ───────────────────────────────────────────────────
 
 export interface EmployeePublishedShift {
@@ -413,7 +447,7 @@ export async function registerSwapRequest(
             }
         }
 
-        await db.collection('businesses').doc(businessId).collection('swaps').add({
+        const docRef = await db.collection('businesses').doc(businessId).collection('swaps').add({
             date: actualDate,
             shiftTitle,
             role,
@@ -425,11 +459,11 @@ export async function registerSwapRequest(
             createdAt: new Date().toISOString()
         });
 
-        console.log(`[FIREBASE] Saved swap request for ${employeeName} on ${actualDate}`);
+        console.log(`[FIREBASE] Saved swap request for ${employeeName} on ${actualDate} (ID: ${docRef.id})`);
 
         // --- Trigger AI Negotiation Asynchronously ---
         // We do not await this so the WhatsApp response to the original employee is fast
-        initiateNegotiation(businessId, actualDate, shiftTitle, role, phone, employeeName, reason).catch(e => {
+        initiateNegotiation(businessId, docRef.id, actualDate, shiftTitle, role, phone, employeeName, reason).catch(e => {
             console.error('[AI] Async negotiation failed:', e);
         });
 
@@ -440,6 +474,7 @@ export async function registerSwapRequest(
 
 async function initiateNegotiation(
     businessId: string,
+    swapId: string,
     date: string,
     shiftTitle: string,
     role: string,
@@ -474,17 +509,27 @@ async function initiateNegotiation(
             return;
         }
 
-        // Dynamically import whatsapp to prevent circular dependency issues
-        const { activeSockets } = await import('./whatsapp');
-        const sock = activeSockets[businessId];
-        if (!sock) {
-            console.error(`[AI] WhatsApp socket not active for business ${businessId}. Cannot send offers.`);
-            return;
-        }
-
-        console.log(`[AI] Initiating negotiation with ${candidates.length} candidates for ${date}`);
+        console.log(`[AI] Initiating negotiation with ${candidates.length} candidates for ${date} in sequence.`);
 
         for (const candidate of candidates) {
+            // Check if swap is still pending before asking the next candidate
+            const swapDoc = await db.collection('businesses').doc(businessId).collection('swaps').doc(swapId).get();
+            if (!swapDoc.exists || swapDoc.data()?.status !== 'pending') {
+                console.log(`[AI] Swap ${swapId} is no longer pending. Stopping negotiation.`);
+                break; // Stop asking other candidates
+            }
+
+            // Set the 'currentlyAsking' field so that the AI knows this is the active offer for the candidate
+            await swapDoc.ref.update({ currentlyAsking: candidate.phone });
+
+            // Dynamically import whatsapp to prevent circular dependency issues
+            const { activeSockets } = await import('./whatsapp');
+            const sock = activeSockets[businessId];
+            if (!sock) {
+                console.error(`[AI] WhatsApp socket not active for business ${businessId}. Cannot send offers.`);
+                return;
+            }
+
             const jid = `${candidate.phone}@s.whatsapp.net`;
             const offerMessage =
                 `היי ${candidate.name} 👋\n` +
@@ -503,8 +548,94 @@ async function initiateNegotiation(
                 timestamp: new Date().toISOString()
             });
 
-            // Add a slight delay to avoid rate limits
-            await new Promise(r => setTimeout(r, 1000));
+            console.log(`[AI] Sent swap offer for ${swapId} to ${candidate.name} (${candidate.phone})`);
+
+            // Wait 10 minutes maximum for an answer (check every 30 seconds)
+            let answered = false;
+            let rejected = false;
+            for (let i = 0; i < 20; i++) { // 20 * 30s = 10 minutes
+                await new Promise(r => setTimeout(r, 30000));
+
+                // Re-check swap status
+                const checkDoc = await db.collection('businesses').doc(businessId).collection('swaps').doc(swapId).get();
+                if (!checkDoc.exists) break;
+
+                const data = checkDoc.data();
+                if (data?.status !== 'pending') {
+                    answered = true;
+                    break;
+                }
+
+                // Check if they explicitly rejected it
+                if (data?.rejectedBy && Array.isArray(data.rejectedBy) && data.rejectedBy.includes(candidate.phone)) {
+                    rejected = true;
+                    break;
+                }
+            }
+
+            // Clear the currently asking marker
+            await db.collection('businesses').doc(businessId).collection('swaps').doc(swapId).update({ currentlyAsking: admin.firestore.FieldValue.delete() }).catch(() => { });
+
+            if (answered) {
+                console.log(`[AI] Stopping negotiation for ${swapId} because it was covered.`);
+                break;
+            } else if (rejected) {
+                console.log(`[AI] Candidate ${candidate.name} rejected offer ${swapId}, moving to next candidate instantly.`);
+            } else {
+                console.log(`[AI] No answer from ${candidate.name} after 10 minutes, moving to next candidate.`);
+            }
+        }
+
+        // Check if the shift was ever covered by the end of the looping process
+        const finalSwapDoc = await db.collection('businesses').doc(businessId).collection('swaps').doc(swapId).get();
+        if (finalSwapDoc.exists && finalSwapDoc.data()?.status === 'pending') {
+            console.log(`[AI] Escalation: No coverage found for swap ${swapId}. Notifying manager & original employee.`);
+
+            // Need to get the socket since 'sock' might be out of scope here
+            const { activeSockets } = await import('./whatsapp');
+            const sock = activeSockets[businessId];
+
+            // 1. Notify the original employee
+            const originalJid = `${originalPhone}@s.whatsapp.net`;
+            let employeeMsg = `שלום ${_originalName}, ניסיתי לחפש מחליף מכל הצוות למשמרת שלך ב-${date}, אבל לצערי אף אחד לא פנוי כרגע.\nהבקשה הועברה לידיעת המנהל. כרגע את/ה עדיין משובץ/ת למשמרת זו.`;
+
+            // Check if the reason was sickness/emergency to avoid claiming they are still scheduled
+            if (_reason.includes('חול') || _reason.includes('חולה') || _reason.includes('מחלה') || _reason.includes('מיון') || _reason.includes('רפואי') || _reason.includes('רופא')) {
+                employeeMsg = `שלום ${_originalName}, ניסיתי לחפש מחליף למשמרת ב-${date} אך ללא הצלחה. מאחר וציינת סיבה בהקשר דחוף/רפואי, הועבר דיווח למנהל לטיפול מיידי. תרגיש/י טוב!`;
+            }
+
+            if (sock) {
+                await sock.sendMessage(originalJid, { text: employeeMsg }).catch((e: unknown) => console.error("Failed to notify original employee on fail", e));
+            }
+
+            // Log it
+            await db.collection('negotiation_logs').add({
+                businessId,
+                employeePhone: originalJid,
+                message: employeeMsg,
+                sender: 'system',
+                timestamp: new Date().toISOString()
+            });
+
+            // 2. Notify the managers
+            const managersSnap = await db.collection('staff')
+                .where('businessId', '==', businessId)
+                .where('role', 'in', ['מנהל', 'אדמין', 'manager', 'admin'])
+                .get();
+
+            for (const mDoc of managersSnap.docs) {
+                const manager = mDoc.data();
+                if (manager.phone) {
+                    let mp = manager.phone.replace(/[^0-9]/g, '');
+                    if (mp.startsWith('0')) mp = '972' + mp.slice(1);
+                    const mJid = `${mp}@s.whatsapp.net`;
+                    const managerMsg = `⚠️ עדכון מערכת: לא נמצא מחליף ל-${_originalName} למשמרת ${shiftTitle} ב- ${date}.\nסיבת הביטול: ${_reason}.\nנדרשת התערבותך לכיסוי המשמרת.`;
+                    if (sock) {
+                        await sock.sendMessage(mJid, { text: managerMsg }).catch((e: unknown) => console.error("Failed to alert manager on fail", e));
+                    }
+                    await new Promise(r => setTimeout(r, 500));
+                }
+            }
         }
     } catch (error) {
         console.error('[AI] Error in initiateNegotiation:', error);
@@ -513,25 +644,23 @@ async function initiateNegotiation(
 
 export async function assignSwap(
     businessId: string,
-    coveredByPhone: string
+    coveredByPhone: string,
+    offerId: string
 ): Promise<{ success: boolean; date?: string; shiftTitle?: string; error?: string }> {
     if (!db) return { success: false, error: 'Database not connected' };
 
     try {
-        // Find the oldest pending swap
-        const swapSnap = await db.collection('businesses')
+        const swapDocRef = db.collection('businesses')
             .doc(businessId)
             .collection('swaps')
-            .where('status', '==', 'pending')
-            .orderBy('createdAt', 'asc')
-            .limit(1)
-            .get();
+            .doc(offerId);
 
-        if (swapSnap.empty) {
-            return { success: false, error: 'אין בקשות להחלפה כרגע.' };
+        const swapDoc = await swapDocRef.get();
+
+        if (!swapDoc.exists || swapDoc.data()?.status !== 'pending') {
+            return { success: false, error: 'אין בקשות להחלפה כרגע בסטטוס פתוח ל-ID זה.' };
         }
 
-        const swapDoc = swapSnap.docs[0];
         const swapData = swapDoc.data() as SwapRequest;
 
         // Prevent the original employee from covering their own shift
@@ -601,5 +730,119 @@ export async function assignSwap(
     } catch (err) {
         console.error("Failed to assign swap:", err);
         return { success: false, error: 'Internal system error' };
+    }
+}
+
+/**
+ * Generates the weekly schedule CSV dynamically from firestore and sends it to the requesting employee.
+ */
+export async function generateAndSendScheduleCsv(businessId: string, remoteJid: string, employeePhone: string): Promise<boolean> {
+    if (!db) return false;
+
+    try {
+        const weekKey = getCurrentWeekKey();
+
+        // 1. Fetch published schedule for the current week
+        const scheduleDoc = await db
+            .collection('published_schedules')
+            .doc(businessId)
+            .collection('weeks')
+            .doc(weekKey)
+            .get();
+
+        if (!scheduleDoc.exists) {
+            console.log(`[FIREBASE] No published schedule found for ${weekKey}`);
+            return false;
+        }
+
+        const data = scheduleDoc.data();
+        const scheduleMap = data?.schedule as Record<string, EmployeePublishedShift[]>;
+
+        if (!scheduleMap) {
+            return false;
+        }
+
+        // 2. We need staff directory to map phones to names for the CSV rows
+        const staffSnap = await db.collection('staff').where('businessId', '==', businessId).get();
+        const staffByPhone: Record<string, string> = {}; // normalizedPhone -> name
+
+        for (const doc of staffSnap.docs) {
+            const sData = doc.data();
+            if (sData.phone) {
+                let p = sData.phone.replace(/[^0-9]/g, '');
+                if (p.startsWith('0')) p = '972' + p.slice(1);
+                staffByPhone[p] = sData.name;
+            }
+        }
+
+        // 3. Build CSV Pivot
+        const BOM = '\uFEFF';
+        const dayNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+        const csvHeaderParts = ['עובד', ...dayNames];
+
+        const escapeCsv = (str: string) => {
+            if (str.includes(',') || str.includes('\n') || str.includes('"')) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        };
+        const csvHeader = csvHeaderParts.map(escapeCsv).join(',');
+
+        const staffScheduleCsvMap = new Map<string, string[]>(); // phone -> array of 7 days
+
+        // Reconstruct the spreadsheet data
+        for (const [phone, shifts] of Object.entries(scheduleMap)) {
+            if (!staffScheduleCsvMap.has(phone)) {
+                staffScheduleCsvMap.set(phone, ['', '', '', '', '', '', '']);
+            }
+            const schedArr = staffScheduleCsvMap.get(phone)!;
+
+            for (const shift of shifts) {
+                // shift.date is DD/MM/YYYY. We need to parse to JS Date to get dayOfWeek
+                const [day, month, year] = shift.date.split('/');
+                const d = new Date(`${year}-${month}-${day}T00:00:00Z`);
+                const dayOfWeek = d.getDay();
+
+                const entry = `${shift.hours} (${shift.role})`;
+                schedArr[dayOfWeek] = schedArr[dayOfWeek] ? `${schedArr[dayOfWeek]} | ${entry}` : entry;
+            }
+        }
+
+        const csvRows: string[] = [];
+        const sortedPhones = Array.from(staffScheduleCsvMap.keys()).sort((a, b) => {
+            return (staffByPhone[a] || '').localeCompare(staffByPhone[b] || '');
+        });
+
+        for (const phone of sortedPhones) {
+            const name = staffByPhone[phone] || 'לא ידוע';
+            const daysArr = staffScheduleCsvMap.get(phone)!;
+            if (daysArr.some(d => d !== '')) {
+                csvRows.push([name, ...daysArr].map(escapeCsv).join(','));
+            }
+        }
+
+        const csvBuffer = Buffer.from(BOM + [csvHeader, ...csvRows].join('\n'), 'utf-8');
+
+        // 4. Send the CSV
+        const { activeSockets } = await import('./whatsapp');
+        const sock = activeSockets[businessId];
+        if (!sock) {
+            console.error(`[FIREBASE] WhatsApp socket not active when trying to send custom CSV`);
+            return false;
+        }
+
+        await sock.sendMessage(remoteJid, {
+            document: csvBuffer,
+            mimetype: 'text/csv',
+            fileName: 'סידור_עבודה.csv',
+            caption: 'סידור עבודה שבועי',
+        });
+
+        console.log(`[FIREBASE] Directly sent CSV schedule to ${employeePhone} (${remoteJid})`);
+        return true;
+
+    } catch (err) {
+        console.error("Failed to generate and send schedule CSV:", err);
+        return false;
     }
 }
