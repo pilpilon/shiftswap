@@ -168,8 +168,17 @@ app.post('/api/whatsapp/publish-schedule', async (req, res) => {
 
     // ── Build ONE shared CSV (full schedule, all employees) ───────────────────
     const BOM = '\uFEFF';
-    const csvHeader = 'תאריך,שעות,תפקיד,עובד';
-    const csvRows: string[] = [];
+    const dayNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+    const csvHeaderParts = ['עובד', ...dayNames];
+
+    const escapeCsv = (str: string) => {
+        if (str.includes(',') || str.includes('\n') || str.includes('"')) {
+            return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+    };
+
+    const csvHeader = csvHeaderParts.map(escapeCsv).join(',');
 
     // Track all unique JIDs who appear in this schedule
     const recipientJids = new Map<string, string>(); // jid → name
@@ -179,6 +188,9 @@ app.post('/api/whatsapp/publish-schedule', async (req, res) => {
     let weekKeyFromSchedule = '';
 
     const sortedShifts = [...shifts].sort((a, b) => a.date.localeCompare(b.date));
+
+    // Map: staffId -> array of 7 strings (one for each day)
+    const staffScheduleCsvMap = new Map<string, string[]>();
 
     for (const shift of sortedShifts) {
         const [year, month, day] = shift.date.split('-');
@@ -191,6 +203,8 @@ app.post('/api/whatsapp/publish-schedule', async (req, res) => {
             weekKeyFromSchedule = `${d.getFullYear()}-W${String(weekNo).padStart(2, '0')}`;
         }
 
+        const dayOfWeek = new Date(`${year}-${month}-${day}T00:00:00Z`).getDay(); // 0 is Sunday, 1 is Monday...
+
         for (const roleReq of shift.roleRequirements) {
             const hours = roleReq.startTime && roleReq.endTime
                 ? `${roleReq.startTime}-${roleReq.endTime}`
@@ -200,7 +214,13 @@ app.post('/api/whatsapp/publish-schedule', async (req, res) => {
                 const member = staffById[staffId];
                 if (!member) continue;
 
-                csvRows.push(`${dateHe},${hours},${roleReq.role},${member.name}`);
+                // For CSV Pivot
+                if (!staffScheduleCsvMap.has(staffId)) {
+                    staffScheduleCsvMap.set(staffId, ['', '', '', '', '', '', '']);
+                }
+                const schedArr = staffScheduleCsvMap.get(staffId)!;
+                const entry = `${hours} (${roleReq.role})`;
+                schedArr[dayOfWeek] = schedArr[dayOfWeek] ? `${schedArr[dayOfWeek]} | ${entry}` : entry;
 
                 let phone = member.phone.replace(/[^0-9]/g, '');
                 if (phone.startsWith('0')) phone = '972' + phone.slice(1);
@@ -210,6 +230,20 @@ app.post('/api/whatsapp/publish-schedule', async (req, res) => {
                 if (!scheduleMap[phone]) scheduleMap[phone] = [];
                 scheduleMap[phone].push({ date: dateHe, hours, role: roleReq.role });
             }
+        }
+    }
+
+    const csvRows: string[] = [];
+    const sortedStaffIds = Array.from(staffScheduleCsvMap.keys()).sort((a, b) => {
+        return (staffById[a]?.name || '').localeCompare(staffById[b]?.name || '');
+    });
+
+    for (const staffId of sortedStaffIds) {
+        const member = staffById[staffId];
+        if (!member) continue;
+        const daysArr = staffScheduleCsvMap.get(staffId)!;
+        if (daysArr.some(d => d !== '')) {
+            csvRows.push([member.name, ...daysArr].map(escapeCsv).join(','));
         }
     }
 
