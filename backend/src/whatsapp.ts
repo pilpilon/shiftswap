@@ -171,7 +171,7 @@ export const initWhatsAppSocket = async (businessId: string) => {
             'משמרת', 'משמרות', 'פנוי', 'פנויה', 'זמינות', 'סידור',
             'תורנות', 'החלפה', 'אישור', 'ביטול', 'לא יכול', 'לא אוכל',
             'שיבוץ', 'עבודה', 'לעבוד', 'יכול', 'יכולה', 'תרשום', 'רשום',
-            'כן', 'לא', 'חולה', 'חירום'
+            'חולה', 'חירום'
         ];
         const lowerText = incomingText.toLowerCase();
         const isShiftRelated = SHIFT_KEYWORDS.some(kw => lowerText.includes(kw));

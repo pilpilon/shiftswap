@@ -37,7 +37,12 @@ export function useSwaps(businessId?: string) {
             } as SwapRequest));
 
             // Sort by creation time, newest first
-            loadedSwaps.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            loadedSwaps.sort((a, b) => {
+                const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                // If invalid date string was provided, getTime() returns NaN. Fallback to 0.
+                return (Number.isNaN(dateB) ? 0 : dateB) - (Number.isNaN(dateA) ? 0 : dateA);
+            });
 
             setSwaps(loadedSwaps);
             setLoading(false);

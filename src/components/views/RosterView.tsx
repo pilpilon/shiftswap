@@ -101,11 +101,25 @@ export default function RosterView() {
         if (allSubmitted && !hasNotifiedRef.current) {
             hasNotifiedRef.current = true;
             if ('Notification' in window && Notification.permission === 'granted') {
-                new Notification('ShiftSwap AI', {
-                    body: 'כל העובדים הגישו זמינות! ניתן לבצע שיבוץ אוטומטי כעת.',
-                    icon: '/vite.svg',
-                    dir: 'rtl'
-                });
+                try {
+                    new Notification('ShiftSwap AI', {
+                        body: 'כל העובדים הגישו זמינות! ניתן לבצע שיבוץ אוטומטי כעת.',
+                        icon: '/vite.svg',
+                        dir: 'rtl'
+                    });
+                } catch (error) {
+                    console.log('Mobile/iOS browser requires service worker to show notifications', error);
+                    // Fallback to Service Worker for mobile Safari
+                    if ('serviceWorker' in navigator) {
+                        navigator.serviceWorker.ready.then(registration => {
+                            registration.showNotification('ShiftSwap AI', {
+                                body: 'כל העובדים הגישו זמינות! ניתן לבצע שיבוץ אוטומטי כעת.',
+                                icon: '/vite.svg',
+                                dir: 'rtl'
+                            });
+                        }).catch(e => console.error('SW notification failed', e));
+                    }
+                }
             }
         } else if (!allSubmitted) {
             hasNotifiedRef.current = false;

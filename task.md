@@ -33,3 +33,9 @@
 - [x] Implement `beforeinstallprompt` event listener in `App.tsx`.
 - [x] Add "Install App" button to the header/profile menu.
 - [x] Test PWA installation flow on mobile and desktop.
+
+# Task: Fix Loading UI Crashes & AI WhatsApp Replies
+- [x] Wrap `Notification` constructor in `RosterView` in a `try/catch` to fix iOS Safari white-screen crash on "All Submitted".
+- [x] Add fallback undefined and `Number.isNaN()` checks to array sorts in `useShifts`, `useSwaps`, `useNegotiations` to prevent rendering crashes.
+- [x] Remove overly broad keywords ('כן', 'לא') from `whatsapp.ts` `SHIFT_KEYWORDS` to prevent AI from waking up on random non-shift related employee messages.
+- [x] Push all changes to Git.

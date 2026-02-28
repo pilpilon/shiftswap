@@ -64,7 +64,7 @@ export function useShifts(businessId: string | undefined) {
                 } as Shift);
             });
 
-            shiftsData.sort((a, b) => a.date.localeCompare(b.date));
+            shiftsData.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
             setShifts(shiftsData);
             setLoading(false);
         }, (err) => {

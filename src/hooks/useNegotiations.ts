@@ -39,7 +39,11 @@ export function useNegotiations(businessId: string | undefined) {
             });
 
             // Sort by timestamp ascending
-            logsData.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+            logsData.sort((a, b) => {
+                const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+                const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+                return (Number.isNaN(timeA) ? 0 : timeA) - (Number.isNaN(timeB) ? 0 : timeB);
+            });
 
             setLogs(logsData);
             setLoading(false);
