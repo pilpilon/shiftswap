@@ -736,8 +736,8 @@ export async function assignSwap(
 /**
  * Generates the weekly schedule CSV dynamically from firestore and sends it to the requesting employee.
  */
-export async function generateAndSendScheduleCsv(businessId: string, remoteJid: string, employeePhone: string): Promise<boolean> {
-    if (!db) return false;
+export async function generateAndSendScheduleCsv(businessId: string, remoteJid: string, employeePhone: string): Promise<{ success: boolean; error?: string }> {
+    if (!db) return { success: false, error: 'Database not connected' };
 
     try {
         const weekKey = getCurrentWeekKey();
@@ -752,14 +752,14 @@ export async function generateAndSendScheduleCsv(businessId: string, remoteJid: 
 
         if (!scheduleDoc.exists) {
             console.log(`[FIREBASE] No published schedule found for ${weekKey}`);
-            return false;
+            return { success: false, error: 'no_published_schedule' };
         }
 
         const data = scheduleDoc.data();
         const scheduleMap = data?.schedule as Record<string, EmployeePublishedShift[]>;
 
         if (!scheduleMap) {
-            return false;
+            return { success: false, error: 'empty_schedule' };
         }
 
         // 2. We need staff directory to map phones to names for the CSV rows
@@ -828,7 +828,7 @@ export async function generateAndSendScheduleCsv(businessId: string, remoteJid: 
         const sock = activeSockets[businessId];
         if (!sock) {
             console.error(`[FIREBASE] WhatsApp socket not active when trying to send custom CSV`);
-            return false;
+            return { success: false, error: 'whatsapp_not_connected' };
         }
 
         await sock.sendMessage(remoteJid, {
@@ -839,10 +839,10 @@ export async function generateAndSendScheduleCsv(businessId: string, remoteJid: 
         });
 
         console.log(`[FIREBASE] Directly sent CSV schedule to ${employeePhone} (${remoteJid})`);
-        return true;
+        return { success: true };
 
     } catch (err) {
         console.error("Failed to generate and send schedule CSV:", err);
-        return false;
+        return { success: false, error: 'Internal system error' };
     }
 }

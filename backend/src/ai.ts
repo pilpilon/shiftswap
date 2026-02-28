@@ -245,9 +245,11 @@ Open Shifts: ${shiftsStr}
 
             } else if (call.name === 'sendScheduleToEmployee') {
                 console.log(`[AI] Schedule request detected from ${phone}`);
-                const success = await generateAndSendScheduleCsv(businessId, remoteJid, phone);
-                if (success) {
+                const result = await generateAndSendScheduleCsv(businessId, remoteJid, phone);
+                if (result.success) {
                     botReply = `בבקשה! הנה סידור העבודה השבועי מצורף בקובץ. 📅\nסגרנו? 👍`;
+                } else if (result.error === 'no_published_schedule' || result.error === 'empty_schedule') {
+                    botReply = `עדיין לא פורסם סידור עבודה לשבוע הזה.`;
                 } else {
                     botReply = `מצטער, חלה שגיאה ביצירת קובץ הסידור. פנה למנהל להמשך בירור.`;
                 }

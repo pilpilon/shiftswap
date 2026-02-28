@@ -3,6 +3,8 @@ import { Boom } from '@hapi/boom';
 import QRCode from 'qrcode';
 import { useFirestoreAuthState, deleteFirestoreAuthState } from './firebaseAuthState';
 
+import pino from 'pino';
+
 // Store active sockets
 export const activeSockets: Record<string, ReturnType<typeof makeWASocket>> = {};
 export const pendingSockets: Record<string, ReturnType<typeof makeWASocket>> = {};
@@ -69,6 +71,7 @@ export const initWhatsAppSocket = async (businessId: string) => {
         version,
         auth: state,
         printQRInTerminal: false,
+        logger: pino({ level: 'silent' }) as any,
         getMessage: async () => {
             return { conversation: 'placeholder' };
         },
