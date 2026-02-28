@@ -191,15 +191,19 @@ export async function saveAvailability(
     businessId: string,
     phone: string, // normalized phone (972XXXXXXXXX)
     weekKey: string,
-    days: string[]   // e.g. ["שני", "שלישי", "שישי"]
+    days: string[],   // e.g. ["שני", "שלישי", "שישי"]
+    notes?: string    // Arbitrary text parsed by AI
 ): Promise<void> {
     if (!db) return;
+    const payload: any = { days, submittedAt: new Date().toISOString() };
+    if (notes) payload.notes = notes;
+
     await db
         .collection('availability')
         .doc(businessId)
         .collection(weekKey)
         .doc(phone)
-        .set({ days, submittedAt: new Date().toISOString() });
+        .set(payload);
 }
 
 /** Get all submitted availability for a given week */

@@ -9,8 +9,14 @@ function getCurrentWeekKey(): string {
     return `${now.getFullYear()}-W${String(weekNo).padStart(2, '0')}`;
 }
 
-// Map of phone -> days[]
-export type AvailabilityMap = Record<string, string[]>;
+export type AvailabilityData = {
+    days: string[];
+    notes?: string;
+    isPending?: boolean;
+};
+
+// Map of phone -> AvailabilityData
+export type AvailabilityMap = Record<string, AvailabilityData>;
 
 /**
  * Fetches all employee availability submissions for the current week.
@@ -37,7 +43,11 @@ export function useAvailability(businessId?: string) {
             snap.forEach(docSnap => {
                 // docSnap.id is the normalized phone
                 const data = docSnap.data();
-                map[docSnap.id] = data.days || [];
+                map[docSnap.id] = {
+                    days: data.days || [],
+                    notes: data.notes,
+                    isPending: data.isPending ?? false
+                };
             });
             setAvailability(map);
         }).catch(err => {
@@ -53,7 +63,7 @@ export function useAvailability(businessId?: string) {
     }
 
     // Get availability for a specific employee by their phone number
-    function getEmployeeAvailability(phone: string): string[] | null {
+    function getEmployeeAvailability(phone: string): AvailabilityData | null {
         const normalized = normalizePhone(phone);
         if (Object.prototype.hasOwnProperty.call(availability, normalized)) {
             return availability[normalized];

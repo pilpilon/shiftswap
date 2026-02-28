@@ -293,7 +293,8 @@ export default function StaffView() {
                                                             {(() => {
                                                                 const avail = getEmployeeAvailability(member.phone);
                                                                 if (avail === null) return <span title="לא הגיש זמינות" className="w-2 h-2 rounded-full bg-slate-300 shrink-0" />;
-                                                                if (avail.length === 0) return <span title="הגיש — אין ימים זמינים" className="w-2 h-2 rounded-full bg-red-400 shrink-0" />;
+                                                                if (avail.isPending) return <span title="ממתין להשלמת שיחה" className="w-2 h-2 rounded-full bg-amber-400 shrink-0 animate-pulse" />;
+                                                                if (avail.days.length === 0) return <span title="הגיש — אין ימים זמינים" className="w-2 h-2 rounded-full bg-red-400 shrink-0" />;
                                                                 return <span title="הגיש זמינות" className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />;
                                                             })()}
                                                         </button>
@@ -441,33 +442,44 @@ export default function StaffView() {
                                         <p className="text-slate-500 text-sm">העובד טרם שלח זמינות לשבוע זה דרך הוואטסאפ.</p>
                                     </div>
                                 );
-                                if (avail.length === 0) return (
-                                    <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
-                                        <p className="text-red-600 text-sm font-medium">שלח הודעה אך לא ציין ימים פנויים.</p>
+                                if (avail.days.length === 0) return (
+                                    <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center flex flex-col gap-2">
+                                        <p className="text-red-600 text-sm font-medium">העובד לא יכול לעבוד בכלל השבוע.</p>
+                                        {avail.notes && (
+                                            <p className="text-xs text-red-500 italic bg-red-100 p-2 rounded-lg text-right">&quot;{avail.notes}&quot;</p>
+                                        )}
                                     </div>
                                 );
                                 return (
-                                    <div className="flex flex-wrap gap-2">
-                                        {['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'].map(day => {
-                                            const isAvailable = avail.includes(day);
-                                            return (
-                                                <span
-                                                    key={day}
-                                                    className={`px-3 py-2 rounded-xl text-sm font-bold border ${isAvailable
-                                                        ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
-                                                        : 'bg-slate-100 text-slate-400 border-slate-200 line-through opacity-50'
-                                                        }`}
-                                                >
-                                                    {day}
-                                                </span>
-                                            );
-                                        })}
+                                    <div className="flex flex-col gap-3">
+                                        <div className="flex flex-wrap gap-2">
+                                            {['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'].map(day => {
+                                                const isAvailable = avail.days.includes(day);
+                                                return (
+                                                    <span
+                                                        key={day}
+                                                        className={`px-3 py-2 rounded-xl text-sm font-bold border ${isAvailable
+                                                            ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
+                                                            : 'bg-slate-100 text-slate-400 border-slate-200 line-through opacity-50'
+                                                            }`}
+                                                    >
+                                                        {day}
+                                                    </span>
+                                                );
+                                            })}
+                                        </div>
+                                        {avail.notes && (
+                                            <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-right mt-1">
+                                                <p className="text-xs font-bold text-amber-800 mb-1">הערות מהעובד:</p>
+                                                <p className="text-sm text-amber-700 leading-relaxed italic">&quot;{avail.notes}&quot;</p>
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })()}
 
                             <div className="mt-6 bg-slate-50 rounded-xl p-3 text-xs text-slate-500">
-                                <p>🟢 נקודה ירוקה = הגיש זמינות  |  🔴 אדומה = שלח אחרי ריק  |  ⚪ אפורה = לא הגיש</p>
+                                <p>🟢 הגיש זמינות | 🟡 ממתין | 🔴 לא זמין | ⚪ לא הגיש</p>
                             </div>
                         </div>
                     </div>

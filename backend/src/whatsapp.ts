@@ -166,19 +166,21 @@ export const initWhatsAppSocket = async (businessId: string) => {
             return;
         }
 
-        // ── Keyword filter ───────────────────────────────────────────────────
-        const SHIFT_KEYWORDS = [
-            'משמרת', 'משמרות', 'פנוי', 'פנויה', 'זמינות', 'סידור',
-            'תורנות', 'החלפה', 'אישור', 'ביטול', 'לא יכול', 'לא אוכל',
-            'שיבוץ', 'עבודה', 'לעבוד', 'יכול', 'יכולה', 'תרשום', 'רשום',
-            'חולה', 'חירום'
+        // ── Magic Word Initiation ──────────────────────────────────────────────
+        const INITIATION_KEYWORDS = [
+            'shiftswap', 'shift swap', 'שיפטסוואפ', 'שיפט סוואפ',
+            'שיפטסוופ', 'שיפט', 'היי שיפט', 'בוט משמרות', 'סידור עבודה', 'משמרות'
         ];
+
         const lowerText = incomingText.toLowerCase();
-        const isShiftRelated = SHIFT_KEYWORDS.some(kw => lowerText.includes(kw));
+
+        // We only start a new conversation if they say a magic word
+        // Or if they are ALREADY in an active conversation window
+        const isInitiation = INITIATION_KEYWORDS.some(kw => lowerText.includes(kw));
         const isActiveConversation = !!activeConversations[businessId]?.has(jid);
 
-        if (!isShiftRelated && !isActiveConversation) {
-            console.log(`[WHATSAPP] Ignoring non-shift message from ${jid}`);
+        if (!isInitiation && !isActiveConversation) {
+            console.log(`[WHATSAPP] Ignoring background chatter from ${jid} (No magic word)`);
             return;
         }
 

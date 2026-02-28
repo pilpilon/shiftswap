@@ -39,60 +39,6 @@ export async function processIncomingMessage(
     // Log the incoming message from the employee
     await saveNegotiationLog(businessId, remoteJid, incomingText, 'employee');
 
-    // ── Intent: availability submission ──────────────────────────────────────
-    if (isAvailabilityMessage(incomingText)) {
-        const days = extractAvailabilityDays(incomingText);
-        const weekKey = getCurrentWeekKey();
-
-        // Resolve real phone: @lid JIDs carry an internal WhatsApp ID, not the phone number.
-        // resolveLidToPhone checks Firestore cache, then falls back to name lookup and caches result.
-        let phone = remoteJid.split('@')[0];
-        if (remoteJid.endsWith('@lid')) {
-            const resolved = await resolveLidToPhone(businessId, remoteJid, senderName);
-            if (resolved) {
-                phone = resolved;
-            } else {
-                console.warn(`[AI] Could not resolve @lid ${remoteJid} — saving with LID fallback`);
-            }
-        }
-        try {
-            await saveAvailability(businessId, phone, weekKey, days);
-            const daysStr = days.join(', ');
-            const reply = `תודה! קיבלתי את הזמינות שלך לשבוע הבא 📅\nימים פנויים: ${daysStr}\nאם תרצה לעדכן — פשוט שלח שוב.`;
-            await saveNegotiationLog(businessId, remoteJid, reply, 'ai');
-            return reply;
-        } catch (err) {
-            console.error('[AI] Failed to save availability:', err);
-        }
-    }
-
-    // ── Intent: Schedule Query ───────────────────────────────────────────────
-    const scheduleKeywords = ['סידור', 'לו"ז', 'מתי אני עובד', 'משמרות של', 'שבוע הבא'];
-    const isScheduleQuery = scheduleKeywords.some(kw => incomingText.includes(kw)) && incomingText.includes('?');
-
-    if (isScheduleQuery) {
-        const phone = remoteJid.split('@')[0];
-        const weekKey = getCurrentWeekKey(); // Query current week
-        try {
-            const { getPublishedSchedule } = await import('./firebase');
-            const shifts = await getPublishedSchedule(businessId, weekKey, phone);
-
-            let reply: string;
-            if (!shifts || shifts.length === 0) {
-                reply = 'לא מצאתי משמרות שפורסמו עבורך לשבוע זה.';
-            } else {
-                const shiftLines = shifts.map(s => `- ${s.date}: ${s.role} (${s.hours})`).join('\n');
-                reply = `הסידור שלך לשבוע הקרוב:\n${shiftLines}`;
-            }
-
-            await saveNegotiationLog(businessId, remoteJid, reply, 'ai');
-            return reply;
-        } catch (err) {
-            console.error('[AI] Failed to fetch schedule:', err);
-        }
-    }
-
-    // ── Default: conversational AI ────────────────────────────────────────────
     const rulesConfig = await getBusinessRules(businessId);
     const openShifts = await getOpenShifts(businessId);
 
@@ -103,7 +49,9 @@ export async function processIncomingMessage(
     const systemInstruction = `
         You are ShiftSwap AI, an intelligent agent managing employee shifts for a restaurant.
         You communicate with employees in Hebrew via WhatsApp.
-        Your goal is to find coverage for open shifts, negotiate based on rules, and assist employees.
+        Your goal is to parse user intents accurately. 
+        
+        The user might say things like "I am free all week except Tuesday after 7pm", or "I need to cancel my shift tomorrow".
         
         Current Rules:
         ${rulesConfig}
@@ -111,9 +59,12 @@ export async function processIncomingMessage(
         Open Shifts:
         ${shiftsStr}
         
-        CRITICAL: If an employee explicitly states they cannot work an upcoming shift (e.g. they are sick, have an exam, etc.), you MUST use the 'registerShiftCancellation' tool. Do NOT just say "feel better", you must register it.
+        CRITICAL INSTRUCTIONS: 
+        1. If the user submits availability (e.g., "I can work Sunday and Monday", "I am free all week"), use the 'registerAvailability' tool. If they mention specific hours or conditions (e.g., "only after 19:00"), include them in the 'notes' field for that day.
+        2. If they explicitly state they CANNOT work an upcoming shift they are already assigned to (e.g., they are sick, have an exam), use the 'registerShiftCancellation' tool.
+        3. Do not just blindly say "Okay". You MUST use the tools to register the action in the database.
         
-        Respond concisely, professionally, and naturally in Hebrew.
+        Respond concisely, professionally, and naturally in Hebrew. End responses with a quick confirmation phrase like "סגרנו? 👍" to let the user know you've updated the system and they can close the chat.
     `;
 
     try {
@@ -125,6 +76,25 @@ export async function processIncomingMessage(
                 temperature: 0.7,
                 tools: [{
                     functionDeclarations: [
+                        {
+                            name: 'registerAvailability',
+                            description: 'Registers the days an employee is available to work next week. Use this when they submit or update their availability.',
+                            parameters: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    days: {
+                                        type: Type.ARRAY,
+                                        description: 'List of Hebrew day names they are available (e.g., ["ראשון", "שני"]). If they say "all week", include all 7 days.',
+                                        items: { type: Type.STRING }
+                                    },
+                                    notes: {
+                                        type: Type.STRING,
+                                        description: 'Any specific constraints or notes (e.g., "From 19:00", "Morning only", "Not sure about Saturday"). Keep it concise in Hebrew. Leave empty if no constraints.'
+                                    }
+                                },
+                                required: ['days']
+                            }
+                        },
                         {
                             name: 'registerShiftCancellation',
                             description: 'Registers that an employee cannot attend their upcoming shift. Use this WHEN the user clearly states they are cancelling or cannot attend a shift.',
@@ -163,18 +133,32 @@ export async function processIncomingMessage(
         if (response.functionCalls && response.functionCalls.length > 0) {
             const call = response.functionCalls[0];
             const phone = remoteJid.split('@')[0];
-            const { registerSwapRequest, assignSwap } = await import('./firebase');
+            const { registerSwapRequest, assignSwap, saveAvailability } = await import('./firebase');
 
-            if (call.name === 'registerShiftCancellation') {
+            if (call.name === 'registerAvailability') {
+                const args = call.args as { days: string[], notes?: string };
+                console.log(`[AI] Availability submission detected: days=${args.days}, notes=${args.notes}`);
+
+                const weekKey = getCurrentWeekKey();
+                await saveAvailability(businessId, phone, weekKey, args.days, args.notes);
+
+                const daysStr = args.days.join(', ');
+                botReply = `מעולה, רשמתי! 📅\nימים פנויים: ${daysStr}`;
+                if (args.notes) {
+                    botReply += `\nהערות: ${args.notes}`;
+                }
+                botReply += `\nסגרנו? 👍`;
+
+            } else if (call.name === 'registerShiftCancellation') {
                 const args = call.args as { reason: string, date: string };
                 console.log(`[AI] Shift cancellation detected: reason=${args.reason}, date=${args.date}`);
                 await registerSwapRequest(businessId, phone, args.date, args.reason, senderName);
-                botReply = `הבנתי, רשמתי שאת/ה לא יכול/ה להגיע ב-${args.date} בגלל: ${args.reason}. אני מחפש מחליף כרגע ואעדכן את המנהל. תרגיש/י טוב!`;
+                botReply = `הבנתי, רשמתי שאת/ה לא יכול/ה להגיע ב-${args.date} בגלל: ${args.reason}. אני מחפש מחליף כרגע ואעדכן את המנהל. תרגיש/י טוב! סגרנו? 👍`;
             } else if (call.name === 'acceptShiftSwap') {
                 console.log(`[AI] Swap acceptance detected from ${phone}`);
                 const assignResult = await assignSwap(businessId, phone);
                 if (assignResult.success) {
-                    botReply = `מעולה! שיבצתי אותך למשמרת ב-${assignResult.date}. תודה רבה על העזרה! 🙏`;
+                    botReply = `מעולה! שיבצתי אותך למשמרת ב-${assignResult.date}. תודה רבה על העזרה! 🙏 סגרנו? 👍`;
                 } else if (assignResult.error === 'self_replacement') {
                     botReply = `לא ניתן להחליף את עצמך. אני ממשיך לחפש מחליף מתאים.`;
                 } else {
