@@ -241,7 +241,7 @@ export default function StaffView() {
                 )}
 
                 <div className="flex-1 overflow-y-auto w-full -mx-4 px-4 sm:mx-0 sm:px-0">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-8">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4 pb-8">
                         {loading ? (
                             <div className="col-span-full p-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-100 shadow-sm">
                                 <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-brand-blue" />
@@ -276,110 +276,118 @@ export default function StaffView() {
                             return (
                                 <div key={member.id} className={`bg-white rounded-2xl border transition-all duration-200 overflow-hidden ${isEditing ? 'border-brand-blue shadow-md ring-1 ring-brand-blue/20' : 'border-slate-100 shadow-sm hover:shadow-md hover:border-slate-200'}`}>
                                     {/* Card Header */}
-                                    <div className="flex justify-between items-start p-4 border-b border-slate-50 bg-slate-50/50">
-                                        <div className="flex items-center gap-3 w-full">
-                                            <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-brand-blue/20 to-blue-500/10 text-brand-blue flex items-center justify-center font-black text-sm shadow-sm border border-white">
-                                                {member.name.charAt(0)}
+                                    <div className="flex justify-between items-start p-2.5 border-b border-slate-50 bg-slate-50/50">
+                                        <div className="flex flex-col gap-2 w-full">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-8 h-8 shrink-0 rounded-full bg-gradient-to-br from-brand-blue/20 to-blue-500/10 text-brand-blue flex items-center justify-center font-black text-xs shadow-sm border border-white">
+                                                    {member.name.charAt(0)}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    {isEditing ? (
+                                                        <input
+                                                            type="text"
+                                                            value={editName}
+                                                            onChange={e => setEditName(e.target.value)}
+                                                            className="w-full font-bold text-slate-800 bg-white border border-slate-300 rounded-lg px-2 py-1 focus:ring-2 focus:ring-brand-blue focus:outline-none focus:border-transparent text-sm"
+                                                            placeholder="שם העובד"
+                                                            autoFocus
+                                                        />
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setSelectedEmployee(member)}
+                                                            className="font-bold text-slate-800 text-sm hover:text-brand-blue transition-colors flex flex-col w-full text-ellipsis overflow-hidden whitespace-nowrap text-right"
+                                                            title="לחץ לצפייה בזמינות"
+                                                        >
+                                                            {member.name}
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <div className="flex-1 min-w-0">
-                                                {isEditing ? (
-                                                    <input
-                                                        type="text"
-                                                        value={editName}
-                                                        onChange={e => setEditName(e.target.value)}
-                                                        className="w-full font-bold text-slate-800 bg-white border border-slate-300 rounded-lg px-2 py-1 focus:ring-2 focus:ring-brand-blue focus:outline-none focus:border-transparent text-sm"
-                                                        placeholder="שם העובד"
-                                                        autoFocus
-                                                    />
-                                                ) : (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setSelectedEmployee(member)}
-                                                        className="font-bold text-slate-800 text-base text-right hover:text-brand-blue transition-colors flex flex-col w-full text-ellipsis overflow-hidden whitespace-nowrap"
-                                                        title="לחץ לצפייה בזמינות"
-                                                    >
-                                                        {member.name}
-                                                        <span className="flex items-center gap-1.5 text-xs text-slate-500 font-medium mt-0.5">
-                                                            {availStatusIcon}
-                                                            {availText}
-                                                        </span>
-                                                    </button>
-                                                )}
-                                            </div>
+                                            {!isEditing && (
+                                                <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-medium bg-white/50 px-2 py-1 rounded-md border border-slate-100 self-end">
+                                                    {availStatusIcon}
+                                                    <span className="truncate">{availText}</span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
                                     {/* Card Body */}
-                                    <div className="p-4 space-y-4">
+                                    <div className="p-2.5 space-y-2.5">
                                         {/* Phone */}
                                         <div>
-                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">מספר נייד</div>
+                                            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 text-right">מספר נייד</div>
                                             {isEditing ? (
                                                 <input
                                                     type="tel"
                                                     value={editPhone}
                                                     onChange={e => setEditPhone(e.target.value)}
-                                                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-brand-blue focus:outline-none focus:border-transparent text-sm text-right"
+                                                    className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1 focus:ring-2 focus:ring-brand-blue focus:outline-none focus:border-transparent text-xs text-right"
                                                     dir="rtl"
                                                     placeholder="מספר טלפון"
                                                 />
                                             ) : (
-                                                <div className="text-slate-700 font-medium text-sm" dir="ltr">{member.phone}</div>
+                                                <div className="text-slate-700 font-medium text-xs text-right" dir="ltr">{member.phone}</div>
                                             )}
                                         </div>
 
                                         {/* Skill Level */}
                                         <div>
-                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">רמת מיומנות</div>
+                                            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 text-right">רמת מיומנות</div>
                                             {isEditing ? (
                                                 <select
                                                     value={editSkillLevel}
                                                     onChange={e => setEditSkillLevel(e.target.value as SkillLevel)}
-                                                    className={`w-full border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand-blue focus:outline-none font-medium bg-white ${SKILL_COLORS[editSkillLevel]}`}
+                                                    className={`w-full border rounded-lg px-2 py-1 text-xs focus:ring-2 focus:ring-brand-blue focus:outline-none font-medium bg-white text-right ${SKILL_COLORS[editSkillLevel]}`}
+                                                    dir="rtl"
                                                 >
                                                     {(Object.entries(SKILL_LEVEL_LABELS) as [SkillLevel, string][]).map(([key, label]) => (
                                                         <option key={key} value={key} className="bg-white text-slate-800">{label}</option>
                                                     ))}
                                                 </select>
                                             ) : (
-                                                <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-bold border shadow-sm ${SKILL_COLORS[member.skillLevel || 'standard']}`}>
-                                                    {SKILL_LEVEL_LABELS[member.skillLevel || 'standard']}
-                                                </span>
+                                                <div className="text-right">
+                                                    <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold border shadow-sm ${SKILL_COLORS[member.skillLevel || 'standard']}`}>
+                                                        {SKILL_LEVEL_LABELS[member.skillLevel || 'standard']}
+                                                    </span>
+                                                </div>
                                             )}
                                         </div>
 
                                         {/* Roles */}
                                         <div>
-                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">תפקידים</div>
+                                            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 text-right">תפקידים</div>
                                             {isEditing ? (
-                                                <div className="flex flex-col gap-2 p-2.5 border border-slate-200 rounded-xl bg-slate-50/50">
-                                                    <div className="flex flex-wrap gap-1.5">
+                                                <div className="flex flex-col gap-1.5 p-1.5 border border-slate-200 rounded-lg bg-slate-50/50">
+                                                    <div className="flex flex-wrap gap-1 justify-end">
                                                         {editRoles.map((role, idx) => (
-                                                            <span key={idx} className="bg-brand-blue text-white shadow-sm px-2 py-1 rounded-md text-[11px] font-medium flex items-center gap-1.5">
+                                                            <span key={idx} className="bg-brand-blue text-white shadow-sm px-1.5 py-0.5 rounded text-[10px] font-medium flex items-center gap-1">
+                                                                <button type="button" onClick={() => removeRole(idx, editRoles, setEditRoles)} className="hover:text-red-200 transition-colors bg-black/10 rounded-full p-0.5"><X className="w-2.5 h-2.5" /></button>
                                                                 {role}
-                                                                <button type="button" onClick={() => removeRole(idx, editRoles, setEditRoles)} className="hover:text-red-200 transition-colors bg-black/10 rounded-full p-0.5"><X className="w-3 h-3" /></button>
                                                             </span>
                                                         ))}
                                                     </div>
-                                                    <div className="flex min-w-[100px] bg-white rounded-lg border border-slate-200 overflow-hidden shadow-inner">
+                                                    <div className="flex min-w-[80px] bg-white rounded-md border border-slate-200 overflow-hidden shadow-inner">
                                                         <input
                                                             type="text"
                                                             list="role-suggestions"
-                                                            placeholder="הוסף תפקיד..."
+                                                            placeholder="תפקיד..."
                                                             value={editRoleInput}
                                                             onChange={e => setEditRoleInput(e.target.value)}
                                                             onKeyDown={e => handleAddRole(e, editRoles, setEditRoles, editRoleInput, setEditRoleInput)}
-                                                            className="w-full text-xs px-2 py-1.5 focus:outline-none bg-transparent"
+                                                            className="w-full text-[10px] px-1.5 py-1 focus:outline-none bg-transparent text-right"
+                                                            dir="rtl"
                                                         />
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <div className="flex flex-wrap gap-1.5">
+                                                <div className="flex flex-wrap gap-1 justify-end">
                                                     {(!member.roles || member.roles.length === 0) ? (
-                                                        <span className="text-xs text-slate-400 italic">לא הוגדרו תפקידים</span>
+                                                        <span className="text-[10px] text-slate-400 italic">לא הוגדרו תפקידים</span>
                                                     ) : (
                                                         member.roles.map((r, i) => (
-                                                            <span key={i} className="px-2 py-1 bg-slate-100 border border-slate-200 text-slate-700 rounded-md text-[11px] font-bold shadow-sm whitespace-nowrap">
+                                                            <span key={i} className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 text-slate-700 rounded text-[10px] font-bold shadow-sm whitespace-nowrap">
                                                                 {r}
                                                             </span>
                                                         ))
@@ -390,15 +398,15 @@ export default function StaffView() {
                                     </div>
 
                                     {/* Card Footer / Actions */}
-                                    <div className="bg-slate-50 border-t border-slate-100 p-3">
-                                        <div className="flex items-center justify-end gap-2 w-full">
+                                    <div className="bg-slate-50 border-t border-slate-100 p-2 text-right">
+                                        <div className="flex items-center justify-start gap-1.5 w-full flex-row-reverse">
                                             {isEditing ? (
                                                 <>
-                                                    <button onClick={cancelEdit} className="flex-1 text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 py-2 rounded-xl transition-colors font-medium flex items-center justify-center gap-1.5 shadow-sm text-sm">
-                                                        <X className="w-4 h-4" /> ביטול
+                                                    <button onClick={cancelEdit} className="flex-1 text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 py-1.5 rounded-lg transition-colors font-medium flex items-center justify-center gap-1 shadow-sm text-xs">
+                                                        <X className="w-3 h-3" /> ביטול
                                                     </button>
-                                                    <button onClick={() => saveEdit(member.id)} className="flex-1 text-white bg-emerald-500 hover:bg-emerald-600 py-2 rounded-xl transition-colors font-bold flex items-center justify-center gap-1.5 shadow-sm text-sm">
-                                                        <Check className="w-4 h-4" /> שמור
+                                                    <button onClick={() => saveEdit(member.id)} className="flex-1 text-white bg-emerald-500 hover:bg-emerald-600 py-1.5 rounded-lg transition-colors font-bold flex items-center justify-center gap-1 shadow-sm text-xs">
+                                                        <Check className="w-3 h-3" /> שמור
                                                     </button>
                                                 </>
                                             ) : (
@@ -409,17 +417,17 @@ export default function StaffView() {
                                                                 removeStaffMember(member.id);
                                                             }
                                                         }}
-                                                        className="text-slate-500 hover:text-rose-600 bg-white border border-slate-200 hover:border-rose-200 py-2 px-3 rounded-xl hover:bg-rose-50 transition-colors flex items-center justify-center shadow-sm"
+                                                        className="text-slate-500 hover:text-rose-600 bg-white border border-slate-200 hover:border-rose-200 py-1.5 px-2 rounded-lg hover:bg-rose-50 transition-colors flex items-center justify-center shadow-sm"
                                                         title="מחיקת עובד"
                                                     >
-                                                        <UserMinus className="w-4 h-4" />
+                                                        <UserMinus className="w-3 h-3" />
                                                     </button>
                                                     <button
                                                         onClick={() => startEdit(member)}
-                                                        className="flex-1 text-slate-700 hover:text-brand-blue bg-white border border-slate-200 hover:border-brand-blue/30 py-2 px-3 rounded-xl hover:bg-blue-50 transition-colors font-medium flex items-center justify-center gap-1.5 shadow-sm text-sm"
+                                                        className="flex-1 text-slate-700 hover:text-brand-blue bg-white border border-slate-200 hover:border-brand-blue/30 py-1.5 px-2 rounded-lg hover:bg-blue-50 transition-colors font-medium flex items-center justify-center gap-1 shadow-sm text-xs"
                                                         title="עריכת עובד"
                                                     >
-                                                        <Edit2 className="w-4 h-4" /> ערוך פרטים
+                                                        <Edit2 className="w-3 h-3" /> ערוך
                                                     </button>
                                                 </>
                                             )}
