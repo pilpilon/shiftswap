@@ -25,6 +25,8 @@
 - [x] One-Click CSV Schedule Generation & multi-send
 - [x] Schedule Query Intent ("מה הסידור שלי?")
 - [x] AI Negotiator: Auto-handles cancellations via WhatsApp & finds replacements
+- [x] Proactive Gap-Fill AI: Automatically reaches out to staff to fill gaps in published schedules
+- [x] Bot Active Hours Settings: User-configurable window for all outbound bot communications
 - [x] Smart Auto-Assign: Filters by real submitted availability (day-of-week)
 - [x] Employee Availability Modal: Status badges + click-to-view submitted days
 
