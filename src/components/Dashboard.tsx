@@ -261,7 +261,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 />
 
                 {/* Scrollable Content Area */}
-                <div className="flex-1 overflow-y-auto p-4 md:p-8 pb-36 md:pb-8">
+                <div className="flex-1 overflow-y-auto p-4 md:p-8 relative">
                     <AnimatePresence mode="wait">
                         <motion.div
                             key={activeTab}
@@ -269,7 +269,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -10 }}
                             transition={{ duration: 0.2 }}
-                            className="max-w-5xl mx-auto h-full"
+                            className="max-w-5xl mx-auto min-h-full pb-28 md:pb-4"
                         >
                             {activeTab === 'roster' && <RosterView />}
                             {activeTab === 'swaps' && <SwapView />}
