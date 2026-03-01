@@ -365,9 +365,10 @@ function SettingsView() {
     useEffect(() => {
         let isMounted = true;
         const checkStatus = async () => {
+            if (!user?.businessId) return; // Wait for user context
             try {
                 const idToken = await auth.currentUser?.getIdToken();
-                const res = await fetch(`${API_URL}/api/whatsapp/status/${businessId}`, {
+                const res = await fetch(`${API_URL}/api/whatsapp/status/${user.businessId}`, {
                     headers: { ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {}) }
                 });
                 const data = await res.json();
@@ -378,17 +379,18 @@ function SettingsView() {
         };
         checkStatus();
         return () => { isMounted = false; };
-    }, [businessId]);
+    }, [user?.businessId]);
 
     const pollIntervalRef = useRef<number | ReturnType<typeof setInterval> | null>(null);
 
     // Cleanup interval on unmount or when pairing/qr succeeds
     const startPolling = () => {
+        if (!user?.businessId) return;
         if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = setInterval(async () => {
             try {
                 const idToken = await auth.currentUser?.getIdToken();
-                const pollRes = await fetch(`${API_URL}/api/whatsapp/status/${businessId}`, {
+                const pollRes = await fetch(`${API_URL}/api/whatsapp/status/${user.businessId}`, {
                     headers: { ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {}) }
                 });
                 const pollData = await pollRes.json();

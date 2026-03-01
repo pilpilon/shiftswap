@@ -27,7 +27,8 @@ export async function requireAuth(req: express.Request, res: express.Response, n
 
         // Ensure the authenticated user owns this business data
         if (requestedBusinessId && decoded.uid !== requestedBusinessId) {
-            return res.status(403).json({ error: 'Forbidden: Business ID mismatch' });
+            console.error(`[AUTH] 403 Mismatch - Token UID: "${decoded.uid}", Requested ID: "${requestedBusinessId}"`);
+            return res.status(403).json({ error: 'Forbidden: Business ID mismatch', expected: requestedBusinessId, got: decoded.uid });
         }
 
         // Attach decoded user to request for downstream use if needed
@@ -35,8 +36,9 @@ export async function requireAuth(req: express.Request, res: express.Response, n
         (req as any).user = decoded;
         next();
     } catch (e) {
-        console.error('[AUTH] Token verification failed:', e);
-        res.status(403).json({ error: 'Forbidden: Invalid token' });
+        const err = e as Error;
+        console.error('[AUTH] Token verification failed:', err.message);
+        res.status(403).json({ error: 'Forbidden: Invalid token', details: err.message });
     }
 }
 
