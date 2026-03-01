@@ -13,7 +13,7 @@
  * Activated by server.ts calling startReminderScheduler().
  */
 
-import { getFirestore, getStaffWhoHaventSubmitted, getCurrentWeekKey } from './firebase';
+import { getFirestore, getStaffWhoHaventSubmitted, getCurrentWeekKey, advancePendingSwaps } from './firebase';
 import { activeSockets } from './whatsapp';
 
 const CHECK_INTERVAL_MS = 60 * 60 * 1000; // check every hour
@@ -65,7 +65,13 @@ async function getBusinessSettings(db: FirebaseFirestore.Firestore, businessId: 
 // ── Job 1: Availability Reminder ────────────────────────────────────────────
 async function runAvailabilityReminder(db: FirebaseFirestore.Firestore, businessesSnap: FirebaseFirestore.QuerySnapshot) {
     const now = new Date();
-    const currentHour = now.getHours();
+    // Convert to IST hour
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Jerusalem',
+        hour: 'numeric',
+        hour12: false
+    });
+    const currentHour = parseInt(formatter.format(now));
     const currentDay = now.getDay();
 
     for (const bizDoc of businessesSnap.docs) {
@@ -110,7 +116,13 @@ async function runAvailabilityReminder(db: FirebaseFirestore.Firestore, business
 // ── Job 2: Proactive Gap-Fill ───────────────────────────────────────────────
 async function runGapFillCheck(db: FirebaseFirestore.Firestore, businessesSnap: FirebaseFirestore.QuerySnapshot) {
     const now = new Date();
-    const currentHour = now.getHours();
+    // Convert to IST hour
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Jerusalem',
+        hour: 'numeric',
+        hour12: false
+    });
+    const currentHour = parseInt(formatter.format(now));
 
     for (const bizDoc of businessesSnap.docs) {
         const businessId = bizDoc.id;
@@ -195,7 +207,20 @@ async function runGapFillCheck(db: FirebaseFirestore.Firestore, businessesSnap: 
                     try {
                         await sock.sendMessage(jid, { text: msg });
                         console.log(`[SCHEDULER] Gap-fill offer sent to ${candidate.name} for shift ${shiftId}`);
-                        await new Promise(r => setTimeout(r, 10 * 60 * 1000)); // wait 10 min for reply
+
+                        // Stateless shift offer – we do NOT block the loop with setTimeout here.
+                        // We mark that we asked this candidate so the bot knows who is responding,
+                        // and let a future cron handle it if they don't answer within 15 minutes.
+                        const expiresAt = new Date();
+                        expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+
+                        await shiftDoc.ref.update({
+                            currentlyAsking: candidate.phone,
+                            offerExpiresAt: expiresAt.toISOString(),
+                            askedCandidates: [...(shift.askedCandidates || []), candidate.phone]
+                        });
+
+                        break; // Stop iterating - we asked one person, wait for next cron cycle or reply
                     } catch (err) {
                         console.error(`[SCHEDULER] Failed to send gap-fill offer to ${candidate.name}:`, err);
                     }
@@ -216,6 +241,10 @@ async function runSchedulerCheck() {
     } catch {
         return;
     }
+
+    businessesSnap.docs.forEach(doc => {
+        advancePendingSwaps(doc.id).catch(console.error);
+    });
 
     await Promise.allSettled([
         runAvailabilityReminder(db, businessesSnap),

@@ -37,6 +37,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
     useEffect(() => {
         if (window.deferredPrompt) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setIsInstallable(true);
         }
         const handleInstallable = () => setIsInstallable(true);
@@ -364,7 +365,11 @@ function SettingsView() {
         let isMounted = true;
         const checkStatus = async () => {
             try {
-                const res = await fetch(`${API_URL}/api/whatsapp/status/${businessId}`);
+                const { auth } = await import('../lib/firebase');
+                const idToken = await auth.currentUser?.getIdToken();
+                const res = await fetch(`${API_URL}/api/whatsapp/status/${businessId}`, {
+                    headers: { ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {}) }
+                });
                 const data = await res.json();
                 if (isMounted && data.status === 'connected') setIsConnected(true);
             } catch (err) {
@@ -375,15 +380,22 @@ function SettingsView() {
         return () => { isMounted = false; };
     }, [businessId]);
 
+    const pollIntervalRef = useRef<number | ReturnType<typeof setInterval> | null>(null);
+
     // Cleanup interval on unmount or when pairing/qr succeeds
     const startPolling = () => {
-        const pollInterval = setInterval(async () => {
+        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = setInterval(async () => {
             try {
-                const pollRes = await fetch(`${API_URL}/api/whatsapp/status/${businessId}`);
+                const { auth } = await import('../lib/firebase');
+                const idToken = await auth.currentUser?.getIdToken();
+                const pollRes = await fetch(`${API_URL}/api/whatsapp/status/${businessId}`, {
+                    headers: { ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {}) }
+                });
                 const pollData = await pollRes.json();
 
                 if (pollData.status === 'connected') {
-                    clearInterval(pollInterval);
+                    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
                     setIsConnected(true);
                     setQrCodeData(null);
                     setPairingCode(null);
@@ -398,13 +410,25 @@ function SettingsView() {
         }, 2000);
     };
 
+    // Cleanup polling on unmount
+    useEffect(() => {
+        return () => {
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+        };
+    }, []);
+
     const handlePairingCode = async () => {
         if (!phoneNumber) return alert("נא להזין מספר טלפון");
         setIsGeneratingPairingCode(true);
         try {
+            const { auth } = await import('../lib/firebase');
+            const idToken = await auth.currentUser?.getIdToken();
             const res = await fetch(`${API_URL}/api/whatsapp/pairing-code`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+                },
                 body: JSON.stringify({ businessId, phoneNumber: '972' + phoneNumber.replace(/^0/, '') }) // basic IL format
             });
             const data = await res.json();
@@ -499,9 +523,14 @@ function SettingsView() {
                                             <button
                                                 onClick={async () => {
                                                     try {
+                                                        const { auth } = await import('../lib/firebase');
+                                                        const idToken = await auth.currentUser?.getIdToken();
                                                         await fetch(`${API_URL}/api/whatsapp/disconnect`, {
                                                             method: 'POST',
-                                                            headers: { 'Content-Type': 'application/json' },
+                                                            headers: {
+                                                                'Content-Type': 'application/json',
+                                                                ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+                                                            },
                                                             body: JSON.stringify({ businessId })
                                                         });
                                                         setIsConnected(false);
@@ -525,9 +554,14 @@ function SettingsView() {
                                                     onClick={async () => {
                                                         setIsGenerating(true);
                                                         try {
+                                                            const { auth } = await import('../lib/firebase');
+                                                            const idToken = await auth.currentUser?.getIdToken();
                                                             const res = await fetch(`${API_URL}/api/whatsapp/connect`, {
                                                                 method: 'POST',
-                                                                headers: { 'Content-Type': 'application/json' },
+                                                                headers: {
+                                                                    'Content-Type': 'application/json',
+                                                                    ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+                                                                },
                                                                 body: JSON.stringify({ businessId })
                                                             });
                                                             const data = await res.json();

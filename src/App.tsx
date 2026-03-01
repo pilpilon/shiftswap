@@ -13,6 +13,7 @@ import { useEffect } from 'react';
 // Global declaration for the prompt
 declare global {
   interface Window {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     deferredPrompt: any;
   }
 }
@@ -47,6 +48,7 @@ function AppContent() {
 
 export default function App() {
   useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
       window.deferredPrompt = e;

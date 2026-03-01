@@ -1,6 +1,5 @@
 import * as admin from 'firebase-admin';
-
-let db: admin.firestore.Firestore;
+export let db: admin.firestore.Firestore;
 
 try {
     let credential;
@@ -57,14 +56,40 @@ export async function getBusinessRules(businessId: string): Promise<string> {
     return "";
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function getOpenShifts(_businessId: string): Promise<{ id: string; role: string; date: string; isUrgent: boolean }[]> {
-    if (!db) {
-        return [
-            { id: '1', role: 'waiter', date: 'Friday Night', isUrgent: true }
-        ];
+export async function getOpenShifts(businessId: string): Promise<{ id: string; role: string; date: string; isUrgent: boolean }[]> {
+    if (!db) return [];
+
+    try {
+        const todayStr = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
+        const shiftsSnap = await db.collection('businesses')
+            .doc(businessId)
+            .collection('shifts')
+            .where('date', '>=', todayStr)
+            .get();
+
+        const openShifts: { id: string; role: string; date: string; isUrgent: boolean }[] = [];
+
+        shiftsSnap.forEach(doc => {
+            const data = doc.data();
+            // Assuming shifts have a totalRequired and a filledCount or assignedIds array
+            const filledCount = data.filledCount || (data.assignedIds ? data.assignedIds.length : 0);
+            const totalRequired = data.totalRequired || 1; // Default to 1 if not specified
+
+            if (filledCount < totalRequired) {
+                openShifts.push({
+                    id: doc.id,
+                    role: data.role || 'Unspecified Role',
+                    date: data.date,
+                    isUrgent: data.urgency === 'high'
+                });
+            }
+        });
+
+        return openShifts;
+    } catch (err) {
+        console.error("Error fetching open shifts:", err);
+        return [];
     }
-    return [];
 }
 
 export async function saveNegotiationLog(businessId: string, employeePhone: string, message: string, sender: 'ai' | 'employee' | 'system') {
@@ -110,6 +135,7 @@ export async function saveLidMapping(businessId: string, lid: string, phone: str
  * SECURITY: Only returns from the verified cache. Does NOT auto-match by name.
  * If a new @lid is encountered, use requestLidVerification() to start the PIN flow.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function resolveLidToPhone(businessId: string, lid: string, _senderName?: string): Promise<string | null> {
     if (!db) return null;
     const lidKey = lid.split('@')[0];
@@ -258,6 +284,8 @@ export async function getPendingLidVerification(
 }
 
 
+const phoneCache = new Map<string, { lastChecked: number; isEmployee: boolean }>();
+
 export async function isEmployeePhone(businessId: string, phoneJid: string): Promise<boolean> {
     if (!db) return true;
 
@@ -269,6 +297,16 @@ export async function isEmployeePhone(businessId: string, phoneJid: string): Pro
 
     const senderPhone = phoneJid.split('@')[0];
     const normalizedSender = normalizePhone(senderPhone);
+    const cacheKey = `${businessId}:${normalizedSender}`;
+
+    // Check RAM cache (valid for 10 mins if true, 1 min if false)
+    const cached = phoneCache.get(cacheKey);
+    if (cached) {
+        const age = Date.now() - cached.lastChecked;
+        if ((cached.isEmployee && age < 10 * 60 * 1000) || (!cached.isEmployee && age < 60 * 1000)) {
+            return cached.isEmployee;
+        }
+    }
 
     try {
         const staffSnapshot = await staffCol(businessId).get();
@@ -279,6 +317,7 @@ export async function isEmployeePhone(businessId: string, phoneJid: string): Pro
                 const normalizedStaffPhone = normalizePhone(data.phone);
                 console.log(`[AUTH] Comparing ${normalizedSender} vs stored ${normalizedStaffPhone}`);
                 if (normalizedStaffPhone === normalizedSender) {
+                    phoneCache.set(cacheKey, { lastChecked: Date.now(), isEmployee: true });
                     return true;
                 }
             }
@@ -288,6 +327,7 @@ export async function isEmployeePhone(businessId: string, phoneJid: string): Pro
     }
 
     console.log(`[AUTH] Rejected message from ${normalizedSender} — not in staff list.`);
+    phoneCache.set(cacheKey, { lastChecked: Date.now(), isEmployee: false });
     return false;
 }
 
@@ -310,7 +350,7 @@ export async function saveAvailability(
     notes?: string
 ): Promise<void> {
     if (!db) return;
-    const payload: any = { days, submittedAt: new Date().toISOString() };
+    const payload: Record<string, unknown> = { days, submittedAt: new Date().toISOString() };
     if (notes) payload.notes = notes;
 
     await db
@@ -654,92 +694,114 @@ async function initiateNegotiation(
 
             console.log(`[AI] Sent swap offer for ${swapId} to ${candidate.name} (${candidate.phone})`);
 
-            // Wait 10 minutes maximum for an answer (check every 30 seconds)
-            let answered = false;
-            let rejected = false;
-            for (let i = 0; i < 20; i++) { // 20 * 30s = 10 minutes
-                await new Promise(r => setTimeout(r, 30000));
-
-                const checkDoc = await db.collection('businesses').doc(businessId).collection('swaps').doc(swapId).get();
-                if (!checkDoc.exists) break;
-
-                const data = checkDoc.data();
-                if (data?.status !== 'pending') {
-                    answered = true;
-                    break;
-                }
-
-                if (data?.rejectedBy && Array.isArray(data.rejectedBy) && data.rejectedBy.includes(candidate.phone)) {
-                    rejected = true;
-                    break;
-                }
-            }
-
-            // Clear the currently asking marker + offer expiry
-            await db.collection('businesses').doc(businessId).collection('swaps').doc(swapId).update({
-                currentlyAsking: admin.firestore.FieldValue.delete(),
-                offerExpiresAt: admin.firestore.FieldValue.delete()
-            }).catch(() => { });
-
-            if (answered) {
-                console.log(`[AI] Stopping negotiation for ${swapId} because it was covered.`);
-                break;
-            } else if (rejected) {
-                console.log(`[AI] Candidate ${candidate.name} rejected offer ${swapId}, moving to next candidate instantly.`);
-            } else {
-                console.log(`[AI] No answer from ${candidate.name} after 10 minutes, moving to next candidate.`);
-            }
-        }
-
-        // Check if the shift was ever covered by the end of the looping process
-        const finalSwapDoc = await db.collection('businesses').doc(businessId).collection('swaps').doc(swapId).get();
-        if (finalSwapDoc.exists && finalSwapDoc.data()?.status === 'pending') {
-            console.log(`[AI] Escalation: No coverage found for swap ${swapId}. Notifying manager & original employee.`);
-
-            const { activeSockets } = await import('./whatsapp');
-            const sock = activeSockets[businessId];
-
-            // 1. Notify the original employee
-            const originalJid = `${originalPhone}@s.whatsapp.net`;
-            let employeeMsg = `שלום ${_originalName}, ניסיתי לחפש מחליף מכל הצוות למשמרת שלך ב-${date}, אבל לצערי אף אחד לא פנוי כרגע.\nהבקשה הועברה לידיעת המנהל. כרגע את/ה עדיין משובץ/ת למשמרת זו.`;
-
-            if (_reason.includes('חול') || _reason.includes('חולה') || _reason.includes('מחלה') || _reason.includes('מיון') || _reason.includes('רפואי') || _reason.includes('רופא')) {
-                employeeMsg = `שלום ${_originalName}, ניסיתי לחפש מחליף למשמרת ב-${date} אך ללא הצלחה. מאחר וציינת סיבה בהקשר דחוף/רפואי, הועבר דיווח למנהל לטיפול מיידי. תרגיש/י טוב!`;
-            }
-
-            if (sock) {
-                await sock.sendMessage(originalJid, { text: employeeMsg }).catch((e: unknown) => console.error("Failed to notify original employee on fail", e));
-            }
-
-            await db.collection('businesses').doc(businessId).collection('negotiation_logs').add({
-                employeePhone: originalJid,
-                message: employeeMsg,
-                sender: 'system',
-                timestamp: new Date().toISOString(),
-                expiresAt: logTtlExpiry()
-            });
-
-            // 2. Notify the managers
-            const managersSnap = await staffCol(businessId)
-                .where('role', 'in', ['מנהל', 'אדמין', 'manager', 'admin'])
-                .get();
-
-            for (const mDoc of managersSnap.docs) {
-                const manager = mDoc.data();
-                if (manager.phone) {
-                    let mp = manager.phone.replace(/[^0-9]/g, '');
-                    if (mp.startsWith('0')) mp = '972' + mp.slice(1);
-                    const mJid = `${mp}@s.whatsapp.net`;
-                    const managerMsg = `⚠️ עדכון מערכת: לא נמצא מחליף ל-${_originalName} למשמרת ${shiftTitle} ב- ${date}.\nסיבת הביטול: ${_reason}.\nנדרשת התערבותך לכיסוי המשמרת.`;
-                    if (sock) {
-                        await sock.sendMessage(mJid, { text: managerMsg }).catch((e: unknown) => console.error("Manager alert error", e));
-                    }
-                    await new Promise(r => setTimeout(r, 500));
-                }
-            }
+            // Just send the first offer and exit. A background cron will handle subsequent offers
+            // if this one expires without an answer.
+            console.log(`[AI] Started negotiation for ${swapId}. Awaiting response from ${candidates[0].name} (${candidates[0].phone}).`);
+            break; // Stop asking other candidates sequentially! Let advancePendingSwaps handle the rest.
         }
     } catch (error) {
         console.error('[AI] Error in initiateNegotiation:', error);
+    }
+}
+
+/**
+ * Checks all pending swaps. If the current offer has expired, it moves to the next
+ * candidate. If no candidates left, it notifies the manager.
+ * This should be called by a cron job (e.g., in scheduler.ts).
+ */
+export async function advancePendingSwaps(businessId: string) {
+    if (!db) return;
+    try {
+        const now = new Date();
+        const pendingSnap = await db.collection('businesses').doc(businessId)
+            .collection('swaps')
+            .where('status', '==', 'pending')
+            .get();
+
+        const { activeSockets } = await import('./whatsapp');
+        const sock = activeSockets[businessId];
+
+        for (const doc of pendingSnap.docs) {
+            const swapData = doc.data() as SwapRequest & { offerExpiresAt?: string, currentlyAsking?: string, rejectedBy?: string[] };
+
+            // If there's an active offer that hasn't expired, skip
+            if (swapData.offerExpiresAt && new Date(swapData.offerExpiresAt) > now) {
+                continue;
+            }
+
+            // Either offer expired, or it's a brand new swap with no currentlyAsking set.
+            // Find next eligible candidate
+            const staffSnap = await staffCol(businessId).get();
+            const candidates: { name: string; phone: string }[] = [];
+
+            for (const staffDoc of staffSnap.docs) {
+                const emp = staffDoc.data();
+                if (!emp.phone) continue;
+                let p = emp.phone.replace(/[^0-9]/g, '');
+                if (p.startsWith('0')) p = '972' + p.slice(1);
+
+                if (p === (swapData.originalPhone || '').replace(/[^0-9]/g, '').replace(/^0/, '972')) continue;
+                if (swapData.rejectedBy?.includes(p)) continue;
+                // If it expired, treat the previous person as if they implicitly rejected it
+                if (swapData.currentlyAsking === p && swapData.offerExpiresAt && new Date(swapData.offerExpiresAt) <= now) {
+                    continue;
+                }
+
+                candidates.push({ name: emp.name, phone: p });
+            }
+
+            if (candidates.length === 0) {
+                // Escalation: No coverage found for swap
+                console.log(`[AI] Escalation: No coverage found for swap ${doc.id}. Notifying manager.`);
+
+                // Notify original employee
+                const originalJid = `${(swapData.originalPhone || '').replace(/^0/, '972')}@s.whatsapp.net`;
+                const employeeMsg = `שלום, ניסיתי לחפש מחליף מכל הצוות למשמרת ב-${swapData.date} אך עדיין ללא הצלחה. הבקשה הועברה לידיצת המנהל לחפש פתרונות חלופיים. בינתיים אתה עדיין משובץ.`;
+                if (sock) await sock.sendMessage(originalJid, { text: employeeMsg }).catch(() => { });
+
+                // Notify managers
+                const managersSnap = await staffCol(businessId).where('role', 'in', ['מנהל', 'אדמין', 'manager', 'admin']).get();
+                for (const mDoc of managersSnap.docs) {
+                    const manager = mDoc.data();
+                    if (manager.phone) {
+                        const mp = manager.phone.replace(/[^0-9]/g, '').startsWith('0') ? '972' + manager.phone.replace(/[^0-9]/g, '').slice(1) : manager.phone.replace(/[^0-9]/g, '');
+                        const mJid = `${mp}@s.whatsapp.net`;
+                        const managerMsg = `⚠️ אירוע חריג: לא נמצא מחליף למשמרת ${swapData.shiftTitle} ב- ${swapData.date}. נא התערבות מנהל.`;
+                        if (sock) await sock.sendMessage(mJid, { text: managerMsg }).catch(() => { });
+                    }
+                }
+
+                // Mark as escalated so we don't keep firing this
+                await doc.ref.update({ status: 'escalated' });
+                continue;
+            }
+
+            // Ask next candidate
+            const nextCandidate = candidates[0];
+            const expiresAt = new Date();
+            expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+
+            // If the old one expired, push them to rejected
+            const updatePayload: Record<string, unknown> = {
+                currentlyAsking: nextCandidate.phone,
+                offerExpiresAt: expiresAt.toISOString(),
+            };
+            if (swapData.currentlyAsking) {
+                updatePayload.rejectedBy = admin.firestore.FieldValue.arrayUnion(swapData.currentlyAsking);
+            }
+
+            await doc.ref.update(updatePayload);
+
+            const jid = `${nextCandidate.phone}@s.whatsapp.net`;
+            const msg = `היי ${nextCandidate.name} 👋\nפנתה משמרת ב-${swapData.date} (${swapData.shiftTitle}).\nהאם מגיע/ה? (השב כן לחייב או בלא).`;
+
+            if (sock) {
+                await sock.sendMessage(jid, { text: msg }).catch(() => { });
+                console.log(`[AI] Advanced swap ${doc.id} to new candidate: ${nextCandidate.name} (${nextCandidate.phone})`);
+            }
+        }
+    } catch (e) {
+        console.error('[AI] Error in advancePendingSwaps:', e);
     }
 }
 
@@ -777,7 +839,7 @@ export async function assignSwap(
             }
 
             // Find the name of the covering employee (read outside transaction is OK for name lookup)
-            let coveredByName = 'עובד מחליף';
+            const coveredByName = 'עובד מחליף';
 
             // NOTE: We can't do arbitrary queries inside a transaction, so we resolve the name
             // after the transaction commits. For now, we set a placeholder.
@@ -835,7 +897,7 @@ export async function assignSwap(
                     if (mp.startsWith('0')) mp = '972' + mp.slice(1);
 
                     const mJid = `${mp}@s.whatsapp.net`;
-                    const alertMsg = `ℹ️ עדכון סידור אוטומטי (AI):\n${coveredByName} לקח/ה את משמרת ${result.shiftTitle} ב-${result.date} במקום ${(result as any).originalEmployee}.`;
+                    const alertMsg = `ℹ️ עדכון סידור אוטומטי (AI):\n${coveredByName} לקח/ה את משמרת ${result.shiftTitle} ב-${result.date} במקום ${(result as { originalEmployee?: string }).originalEmployee}.`;
                     await sock.sendMessage(mJid, { text: alertMsg }).catch((e: unknown) => console.error("Manager alert error", e));
                     await new Promise(r => setTimeout(r, 500));
                 }

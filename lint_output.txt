@@ -1,0 +1,53 @@
+
+C:\Users\Aorus\Documents\shiftswap\backend\dist\firebase.js
+  113:1  error  Definition for rule '@typescript-eslint/no-unused-vars' was not found  @typescript-eslint/no-unused-vars
+  541:1  error  Definition for rule '@typescript-eslint/no-unused-vars' was not found  @typescript-eslint/no-unused-vars
+  543:1  error  Definition for rule '@typescript-eslint/no-unused-vars' was not found  @typescript-eslint/no-unused-vars
+
+C:\Users\Aorus\Documents\shiftswap\backend\dist\whatsapp.js
+  91:5  error  Definition for rule 'react-hooks/rules-of-hooks' was not found  react-hooks/rules-of-hooks
+
+C:\Users\Aorus\Documents\shiftswap\backend\src\ai.ts
+   5:63  error  'saveAvailability' is defined but never used       @typescript-eslint/no-unused-vars
+  19:10  error  'isAvailabilityMessage' is defined but never used  @typescript-eslint/no-unused-vars
+  70:26  error  Unexpected any. Specify a different type           @typescript-eslint/no-explicit-any
+
+C:\Users\Aorus\Documents\shiftswap\backend\src\firebase.ts
+  138:74   error  '_senderName' is defined but never used                   @typescript-eslint/no-unused-vars
+  352:20   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  784:34   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  841:17   error  'coveredByName' is never reassigned. Use 'const' instead  prefer-const
+  899:158  error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+
+C:\Users\Aorus\Documents\shiftswap\backend\src\server.ts
+  34:17  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Aorus\Documents\shiftswap\backend\src\whatsapp.ts
+   74:46   error  Unexpected any. Specify a different type             @typescript-eslint/no-explicit-any
+  198:122  error  'saveLidMapping' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Aorus\Documents\shiftswap\src\App.tsx
+  16:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  50:43  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Aorus\Documents\shiftswap\src\components\Dashboard.tsx
+  40:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Aorus\Documents\shiftswap\src\components\Dashboard.tsx:40:13
+  38 |     useEffect(() => {
+  39 |         if (window.deferredPrompt) {
+> 40 |             setIsInstallable(true);
+     |             ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  41 |         }
+  42 |         const handleInstallable = () => setIsInstallable(true);
+  43 |         window.addEventListener('pwa-installable', handleInstallable);  react-hooks/set-state-in-effect
+
+✖ 18 problems (18 errors, 0 warnings)
+  1 error and 0 warnings potentially fixable with the `--fix` option.
+

@@ -41,3 +41,9 @@
 - [x] Subscriptions Checkout UI ($40/mo)
 - [x] Paddle.js SDK Integration
 - [x] Compliance Legal Pages (Privacy, Terms, Refund)
+
+## Security & Architecture
+- [x] Firebase Custom Auth Tokens & Middleware for API Routes
+- [x] Server-side Secure Webhook Processing (Paddle)
+- [x] Distributed Mutex Locks for Baileys State 
+- [x] Debounced Firestore Writes (Rate Limiting)

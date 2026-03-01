@@ -71,6 +71,7 @@ export const initWhatsAppSocket = async (businessId: string) => {
         version,
         auth: state,
         printQRInTerminal: false,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         logger: pino({ level: 'silent' }) as any,
         getMessage: async () => {
             return { conversation: 'placeholder' };
@@ -195,7 +196,7 @@ export const initWhatsAppSocket = async (businessId: string) => {
         }
 
         try {
-            const { isEmployeePhone, resolveLidToPhone, getPendingLidVerification, requestLidVerification, verifyLidPin, saveLidMapping } = await import('./firebase');
+            const { isEmployeePhone, resolveLidToPhone, getPendingLidVerification, requestLidVerification, verifyLidPin } = await import('./firebase');
             const isEmployee = await isEmployeePhone(businessId, jid);
             if (!isEmployee) {
                 console.log(`[WHATSAPP] Ignoring message from unauthorized number: ${jid}`);

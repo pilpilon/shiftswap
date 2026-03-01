@@ -4,9 +4,6 @@ import { useAuth } from '../context/AuthContext';
 import { initializePaddle } from '@paddle/paddle-js';
 import type { Paddle } from '@paddle/paddle-js';
 import { useState, useEffect } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-
 export default function Paywall() {
     const { user, logout } = useAuth();
     const [paddle, setPaddle] = useState<Paddle>();
@@ -16,12 +13,12 @@ export default function Paywall() {
         if (!user?.id) return;
         setLoading(true);
         try {
-            await updateDoc(doc(db, 'users', user.id), {
-                isPro: true
-            });
-            window.location.reload(); // Reload to refresh auth context and enter dashboard
+            // We removed the insecure client-side updateDoc here.
+            // The server-side webhook (/api/webhooks/paddle) handles this now.
+            alert("תודה על ההרשמה! חשבונך ישודרג ל-Pro תוך מספר רגעים (יש לרענן את העמוד).");
+            window.location.reload();
         } catch (err) {
-            console.error("Error upgrading user:", err);
+            console.error("Error handling upgrade UI:", err);
             setLoading(false);
         }
     };
@@ -59,7 +56,8 @@ export default function Paywall() {
             if (priceId) {
                 paddle.Checkout.open({
                     items: [{ priceId, quantity: 1 }],
-                    customer: { email: user?.name || '', address: { countryCode: "IL" } }
+                    customer: { email: user?.name || '', address: { countryCode: "IL" } },
+                    customData: { userId: user?.id }
                 });
             } else {
                 alert("שגיאה: חסר מזהה מוצר של Paddle בהגדרות המערכת (Vite Envs).");

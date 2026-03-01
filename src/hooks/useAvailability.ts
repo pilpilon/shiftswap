@@ -36,7 +36,7 @@ export function useAvailability(businessId?: string) {
 
         setLoading(true);
         const db = getFirestore();
-        const weekRef = collection(db, 'availability', businessId, weekKey);
+        const weekRef = collection(db, 'businesses', businessId, 'availability', weekKey, 'submissions');
 
         getDocs(weekRef).then(snap => {
             const map: AvailabilityMap = {};

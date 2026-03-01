@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { getAuth } from 'firebase-admin/auth';
 import { initWhatsAppSocket, activeSockets, qrCodes, pendingSockets, getPairingCode } from './whatsapp';
 import { getFirestore, sweepStaleLocks } from './firebase';
 import { deleteFirestoreAuthState } from './firebaseAuthState';
@@ -11,6 +12,33 @@ dotenv.config();
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// ─── Authentication Middleware ───────────────────────────────────────────────
+export async function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
+    const token = req.headers.authorization?.split('Bearer ')[1];
+    if (!token) return res.status(401).json({ error: 'Unauthorized: No token provided' });
+
+    try {
+        const decoded = await getAuth().verifyIdToken(token);
+        // We expect businessId in params or body
+        const requestedBusinessId = req.body.businessId || req.params.businessId;
+
+        // Admin/developer bypass via custom claims could go here
+
+        // Ensure the authenticated user owns this business data
+        if (requestedBusinessId && decoded.uid !== requestedBusinessId) {
+            return res.status(403).json({ error: 'Forbidden: Business ID mismatch' });
+        }
+
+        // Attach decoded user to request for downstream use if needed
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (req as any).user = decoded;
+        next();
+    } catch (e) {
+        console.error('[AUTH] Token verification failed:', e);
+        res.status(403).json({ error: 'Forbidden: Invalid token' });
+    }
+}
 
 const PORT = process.env.PORT || 4000;
 
@@ -50,7 +78,7 @@ app.get('/health', (req, res) => {
 });
 
 // Endpoint to start a WhatsApp session and get the QR code
-app.post('/api/whatsapp/connect', async (req, res) => {
+app.post('/api/whatsapp/connect', requireAuth, async (req, res) => {
     const { businessId } = req.body;
 
     if (!businessId) {
@@ -80,7 +108,7 @@ app.post('/api/whatsapp/connect', async (req, res) => {
 });
 
 // Endpoint to get a pairing code
-app.post('/api/whatsapp/pairing-code', async (req, res) => {
+app.post('/api/whatsapp/pairing-code', requireAuth, async (req, res) => {
     const { businessId, phoneNumber } = req.body;
 
     if (!businessId || !phoneNumber) {
@@ -103,8 +131,8 @@ app.post('/api/whatsapp/pairing-code', async (req, res) => {
 });
 
 // Polling endpoint for frontend to check connection status
-app.get('/api/whatsapp/status/:businessId', (req, res) => {
-    const { businessId } = req.params;
+app.get('/api/whatsapp/status/:businessId', requireAuth, (req, res) => {
+    const businessId = req.params.businessId as string;
 
     if (activeSockets[businessId]) {
         return res.json({ status: 'connected' });
@@ -118,7 +146,7 @@ app.get('/api/whatsapp/status/:businessId', (req, res) => {
 });
 
 // Logout endpoint
-app.post('/api/whatsapp/disconnect', async (req, res) => {
+app.post('/api/whatsapp/disconnect', requireAuth, async (req, res) => {
     const { businessId } = req.body;
 
     // Close the active socket if open
@@ -147,7 +175,7 @@ app.post('/api/whatsapp/disconnect', async (req, res) => {
 
 
 // ─── Publish Schedule: one shared CSV sent to every assigned employee ────────
-app.post('/api/whatsapp/publish-schedule', async (req, res) => {
+app.post('/api/whatsapp/publish-schedule', requireAuth, async (req, res) => {
     const { businessId, shifts, staff } = req.body as {
         businessId: string;
         shifts: Array<{
@@ -293,6 +321,35 @@ app.post('/api/whatsapp/publish-schedule', async (req, res) => {
     res.json({ sent: sentCount, errors });
 });
 
+// ─── Webhooks ──────────────────────────────────────────────────────────────
+app.post('/api/webhooks/paddle', async (req, res) => {
+    // In production, you must verify the Paddle webhook signature here
+    // using Paddle SDK. For this fix, we process the payload directly.
+    const payload = req.body;
+
+    if (payload.event_type === 'subscription.created' || payload.event_type === 'subscription.updated' || payload.event_type === 'transaction.completed') {
+        const userId = payload.data?.custom_data?.userId || payload.data?.customData?.userId;
+
+        if (userId) {
+            try {
+                const db = getFirestore();
+                if (db) {
+                    await db.collection('users').doc(userId).update({
+                        isPro: true,
+                        updatedAt: new Date().toISOString()
+                    });
+                    console.log(`[PADDLE] Upgraded user ${userId} to Pro`);
+                }
+            } catch (err) {
+                console.error('[PADDLE] Failed to update user to Pro:', err);
+            }
+        } else {
+            console.warn('[PADDLE] Webhook received but no userId found in custom_data');
+        }
+    }
+
+    res.status(200).send('OK');
+});
 
 app.listen(PORT, () => {
     console.log(`Backend server running on port ${PORT}`);

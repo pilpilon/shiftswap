@@ -56,10 +56,6 @@ async function fetchWeekAvailability(businessId: string): Promise<Record<string,
     return map;
 }
 
-/**
- * Given a list of shifts and available staff, compute how many slots are filled
- * for each shift (by availability + role + skill matching) and persist to Firestore.
- */
 export async function runAutoAssign(
     shifts: Shift[],
     staff: StaffMember[],
@@ -78,23 +74,41 @@ export async function runAutoAssign(
         }
     }
 
+    // Track assigned staff globally per date to prevent double-booking on the same day
+    const assignedPerDate: Record<string, Set<string>> = {};
+
+    // First pass: populate assignedPerDate with existing manual/previous assignments
+    for (const shift of shifts) {
+        if (!assignedPerDate[shift.date]) {
+            assignedPerDate[shift.date] = new Set<string>();
+        }
+        for (const req of (shift.roleRequirements || [])) {
+            for (const id of (req.assignedIds || [])) {
+                assignedPerDate[shift.date].add(id);
+            }
+        }
+    }
+
     for (const shift of shifts) {
         const shiftDayHe = getHebrewDay(shift.date);
+        const dateAssignedSet = assignedPerDate[shift.date];
 
-        // Filter the staff pool: only include those who declared they are available on this day.
-        // If employee never submitted at all, exclude them strictly.
+        // Filter the staff pool: include those who declare availability
         const availableStaff = staff.filter(member => {
             const phone = normalizePhone(member.phone);
             const memberDays = availabilityMap[phone];
             return memberDays && memberDays.includes(shiftDayHe);
         });
 
-        // Clear previous assignments to avoid duplicate accumulation
-        const cleanRequirements = shift.roleRequirements.map(req => ({ ...req, assignedIds: [] }));
+        // Do NOT clear existing assignments: keep them!
+        const existingRequirements = shift.roleRequirements.map(req => ({
+            ...req,
+            assignedIds: req.assignedIds ? [...req.assignedIds] : []
+        }));
 
-        const { totalFilled, updatedRequirements } = computeFilledCount(cleanRequirements, availableStaff);
+        const { totalFilled, updatedRequirements } = computeFilledCount(existingRequirements, availableStaff, dateAssignedSet);
 
-        await updateDoc(doc(db, 'shifts', shift.id), {
+        await updateDoc(doc(db, 'businesses', businessId!, 'shifts', shift.id), {
             filledCount: totalFilled,
             roleRequirements: updatedRequirements
         });
@@ -107,36 +121,49 @@ export async function runAutoAssign(
 
 /**
  * Count how many role-slots can be filled given the available staff pool.
- * Uses a greedy approach: each staff member can fill at most one slot across all roles in a shift.
+ * Respects existing assignments and prevents same-day double booking.
  */
 function computeFilledCount(
     requirements: RoleRequirement[],
-    staff: StaffMember[]
+    staff: StaffMember[],
+    dateAssignedSet: Set<string>
 ): { totalFilled: number, updatedRequirements: RoleRequirement[] } {
-    // Build a working copy of available staff (each can be used once per shift)
+    // Build a working copy of available staff
     const available = [...staff];
     let totalFilled = 0;
     const updatedRequirements: RoleRequirement[] = [];
 
     for (const req of requirements) {
-        let needed = req.count;
-        const requiredRank = SKILL_RANK[req.skillLevel] ?? 1;
+        // We only need to fill the *remaining* slots
+        let needed = req.count - (req.assignedIds?.length || 0);
 
+        // Accumulate existing manual assignments into the total length
+        totalFilled += (req.assignedIds?.length || 0);
+
+        const requiredRank = SKILL_RANK[req.skillLevel] ?? 1;
         const newReq = { ...req, assignedIds: req.assignedIds ? [...req.assignedIds] : [] };
 
         for (let i = available.length - 1; i >= 0 && needed > 0; i--) {
             const member = available[i];
-            const memberRank = SKILL_RANK[member.skillLevel] ?? 1;
 
-            // Check role match and skill level (higher rank satisfies lower requirement)
+            // ALREADY assigned on this date? Skip them.
+            if (dateAssignedSet.has(member.id)) {
+                available.splice(i, 1);
+                continue;
+            }
+
+            const memberRank = SKILL_RANK[member.skillLevel] ?? 1;
             const roleMatch = member.roles?.some(
                 (r) => r.trim() === req.role.trim()
             );
+
             if (roleMatch && memberRank >= requiredRank) {
                 totalFilled++;
                 needed--;
                 newReq.assignedIds.push(member.id);
-                // Remove from available pool so the same person isn't double-assigned
+                // Mark globally assigned for this date
+                dateAssignedSet.add(member.id);
+                // Remove from local shift pool
                 available.splice(i, 1);
             }
         }

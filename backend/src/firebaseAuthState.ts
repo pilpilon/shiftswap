@@ -1,6 +1,7 @@
 
 import { AuthenticationCreds, AuthenticationState, SignalDataTypeMap, initAuthCreds, BufferJSON } from '@whiskeysockets/baileys';
 import { getFirestore } from './firebase';
+import { Mutex } from 'async-mutex';
 
 const COLLECTION = 'whatsapp_sessions';
 
@@ -41,46 +42,51 @@ export async function useFirestoreAuthState(businessId: string): Promise<{
     // ─── Signal key store backed by Firestore ─────────────────────────────────
     function makeKeyStore() {
         const keysCollection = sessionDoc.collection('keys');
+        const mutex = new Mutex(); // Add mutex for concurrent get/set
 
         async function get<T extends keyof SignalDataTypeMap>(
             type: T,
             ids: string[]
         ): Promise<{ [id: string]: SignalDataTypeMap[T] }> {
-            const result: { [id: string]: SignalDataTypeMap[T] } = {};
-            await Promise.all(
-                ids.map(async (id) => {
-                    const docId = `${type}_${id}`;
-                    const snap = await keysCollection.doc(docId).get();
-                    if (snap.exists) {
-                        try {
-                            const parsed = JSON.parse(snap.data()!.value, BufferJSON.reviver);
-                            result[id] = parsed;
-                        } catch {
-                            // ignore corrupt keys
+            return await mutex.runExclusive(async () => {
+                const result: { [id: string]: SignalDataTypeMap[T] } = {};
+                await Promise.all(
+                    ids.map(async (id) => {
+                        const docId = `${type}_${id}`;
+                        const snap = await keysCollection.doc(docId).get();
+                        if (snap.exists) {
+                            try {
+                                const parsed = JSON.parse(snap.data()!.value, BufferJSON.reviver);
+                                result[id] = parsed;
+                            } catch {
+                                // ignore corrupt keys
+                            }
                         }
-                    }
-                })
-            );
-            return result;
+                    })
+                );
+                return result;
+            });
         }
 
         async function set(data: { [T in keyof SignalDataTypeMap]?: { [id: string]: SignalDataTypeMap[T] | null | undefined } }) {
-            const batch = db!.batch();
-            for (const type of Object.keys(data) as (keyof SignalDataTypeMap)[]) {
-                const typeData = data[type];
-                if (!typeData) continue;
-                for (const id of Object.keys(typeData)) {
-                    const value = typeData[id];
-                    const docId = `${type}_${id}`;
-                    const docRef = keysCollection.doc(docId);
-                    if (value == null) {
-                        batch.delete(docRef);
-                    } else {
-                        batch.set(docRef, { value: JSON.stringify(value, BufferJSON.replacer) });
+            await mutex.runExclusive(async () => {
+                const batch = db!.batch();
+                for (const type of Object.keys(data) as (keyof SignalDataTypeMap)[]) {
+                    const typeData = data[type];
+                    if (!typeData) continue;
+                    for (const id of Object.keys(typeData)) {
+                        const value = typeData[id];
+                        const docId = `${type}_${id}`;
+                        const docRef = keysCollection.doc(docId);
+                        if (value == null) {
+                            batch.delete(docRef);
+                        } else {
+                            batch.set(docRef, { value: JSON.stringify(value, BufferJSON.replacer) });
+                        }
                     }
                 }
-            }
-            await batch.commit();
+                await batch.commit();
+            });
         }
 
         return { get, set };
@@ -91,11 +97,16 @@ export async function useFirestoreAuthState(businessId: string): Promise<{
 
     const state: AuthenticationState = { creds, keys };
 
+    let saveCredsTimeout: NodeJS.Timeout | null = null;
     async function saveCreds() {
-        await sessionDoc.set(
-            { creds: JSON.stringify(state.creds, BufferJSON.replacer) },
-            { merge: true }
-        );
+        if (saveCredsTimeout) return;
+        saveCredsTimeout = setTimeout(async () => {
+            saveCredsTimeout = null;
+            await sessionDoc.set(
+                { creds: JSON.stringify(state.creds, BufferJSON.replacer) },
+                { merge: true }
+            );
+        }, 3000); // 3-second debounce
     }
 
     return { state, saveCreds };

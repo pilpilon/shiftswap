@@ -245,9 +245,15 @@ export default function RosterView() {
         setIsPublishing(true);
         setAssignMsg(null);
         try {
+            const { auth } = await import('../../../src/lib/firebase');
+            const idToken = await auth.currentUser?.getIdToken();
+
             const res = await fetch(`${API_URL}/api/whatsapp/publish-schedule`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {})
+                },
                 body: JSON.stringify({ businessId: user?.businessId, shifts: currentWeekShifts, staff }),
             });
             const data = await res.json();

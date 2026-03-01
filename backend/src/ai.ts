@@ -2,32 +2,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 
 const ai = new GoogleGenAI({});
 
-import { getBusinessRules, getOpenShifts, saveNegotiationLog, saveAvailability, getCurrentWeekKey, resolveLidToPhone } from './firebase';
-
-// Hebrew day names for availability parsing
-const HEBREW_DAYS: Record<string, string> = {
-    'ראשון': 'ראשון', 'שני': 'שני', 'שלישי': 'שלישי',
-    'רביעי': 'רביעי', 'חמישי': 'חמישי', 'שישי': 'שישי', 'שבת': 'שבת',
-};
-
-/** Returns an array of Hebrew day names found in the text */
-function extractAvailabilityDays(text: string): string[] {
-    return Object.keys(HEBREW_DAYS).filter(day => text.includes(day));
-}
-
-/** Returns true if the message appears to be an availability submission */
-function isAvailabilityMessage(text: string): boolean {
-    const hasAvailabilityKeyword = [
-        'פנוי', 'פנויה', 'זמינות',
-        'יכול לעבוד', 'יכולה לעבוד',
-        'יכול', 'יכולה',
-        'תרשום', 'רשום', 'רשמי',
-        'אפשר', 'לעבוד',
-    ].some(kw => text.includes(kw));
-    const days = extractAvailabilityDays(text);
-    // Accept if: has keyword + at least 1 day, OR has 2+ day names (strong signal on its own)
-    return (hasAvailabilityKeyword && days.length > 0) || days.length >= 2;
-}
+import { getBusinessRules, getOpenShifts, saveNegotiationLog, getCurrentWeekKey, resolveLidToPhone, db } from './firebase';
 
 export async function processIncomingMessage(
     businessId: string,
@@ -62,7 +37,40 @@ export async function processIncomingMessage(
     const activeOfferId = await getActiveOfferId(businessId, phone);
     const activeOfferStr = activeOfferId || "NONE";
     const employeeDisplayName = senderName || "עובד/ת מערכת";
-    const currentIsoDateTime = new Date().toISOString();
+
+    // Timezone correction to IST
+    const currentIsoDateTime = new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' });
+
+    // Fetch conversation history
+    let historyContents: { role: string; parts: { text: string }[] }[] = [];
+    try {
+        const historySnapshot = await db.collection('negotiation_logs')
+            .where('businessId', '==', businessId)
+            .where('remoteJid', '==', remoteJid)
+            .orderBy('timestamp', 'desc')
+            .limit(10)
+            .get();
+
+        type NegLog = { role: string; message: string; timestamp: string };
+        const rawLogs = historySnapshot.docs.map(d => d.data() as NegLog).reverse();
+        // Remove the very last one, which is the message we just saved above
+        if (rawLogs.length > 0 && rawLogs[rawLogs.length - 1].message === incomingText) {
+            rawLogs.pop();
+        }
+
+        historyContents = rawLogs.map((log: NegLog) => ({
+            role: log.role === 'ai' ? 'model' : 'user',
+            parts: [{ text: log.message }]
+        }));
+    } catch (err) {
+        console.error('[AI] Failed to fetch conversation history:', err);
+    }
+
+    // Append current message
+    historyContents.push({
+        role: 'user',
+        parts: [{ text: incomingText }]
+    });
 
     const systemInstruction = `
 <system_role>
@@ -106,7 +114,7 @@ Open Shifts: ${shiftsStr}
     try {
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
-            contents: incomingText,
+            contents: historyContents,
             config: {
                 systemInstruction,
                 temperature: 0.1, // lowered for more deterministic JSON outputs
