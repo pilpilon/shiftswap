@@ -595,11 +595,11 @@ function SettingsView() {
                     >
                         <motion.div
                             initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-                            className="bg-white rounded-3xl p-0 max-w-md w-full shadow-2xl overflow-hidden"
+                            className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
                             onClick={(e) => e.stopPropagation()}
                         >
                             {/* Header */}
-                            <div className="bg-gradient-to-br from-brand-blue to-indigo-700 p-6 text-white relative">
+                            <div className="bg-gradient-to-br from-brand-blue to-indigo-700 p-6 text-white relative shrink-0">
                                 <button onClick={() => setShowNegotiationHelp(false)} className="absolute top-4 left-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12" /></svg>
                                 </button>
@@ -609,36 +609,40 @@ function SettingsView() {
                                 <h3 className="text-xl font-black">איך עובד הבוט המשא ומתן?</h3>
                                 <p className="text-sm text-white/70 mt-1">הכל על הסוכן החכם שסוגר לך משמרות</p>
                             </div>
-                            {/* Content */}
-                            <div className="p-6 space-y-5 text-right" dir="rtl">
-                                <div className="flex gap-4">
-                                    <div className="w-8 h-8 rounded-full bg-brand-blue text-white text-sm font-black flex items-center justify-center shrink-0 mt-0.5">1</div>
-                                    <div>
-                                        <p className="font-bold text-slate-800">מתי מתחיל המשא ומתן?</p>
-                                        <p className="text-sm text-slate-500 mt-1 leading-relaxed">הבוט מתעורר אוטומטית כשמשמרת נשארת פתוחה X שעות לפני תחילתה (לפי ההגדרה שלך). הוא מתחיל לפנות לעובדים הרלוונטיים לפי זמינות וטיב העיסוק.</p>
+                            {/* Content - Scrollable */}
+                            <div className="overflow-y-auto flex-1 custom-scrollbar">
+                                <div className="p-6 space-y-5 text-right" dir="rtl">
+                                    <div className="flex gap-4">
+                                        <div className="w-8 h-8 rounded-full bg-brand-blue text-white text-sm font-black flex items-center justify-center shrink-0 mt-0.5">1</div>
+                                        <div>
+                                            <p className="font-bold text-slate-800">מתי מתחיל המשא ומתן?</p>
+                                            <p className="text-sm text-slate-500 mt-1 leading-relaxed">הבוט מתעורר אוטומטית כשמשמרת נשארת פתוחה X שעות לפני תחילתה (לפי ההגדרה שלך). הוא מתחיל לפנות לעובדים הרלוונטיים לפי זמינות וטיב העיסוק.</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-4">
+                                        <div className="w-8 h-8 rounded-full bg-brand-blue text-white text-sm font-black flex items-center justify-center shrink-0 mt-0.5">2</div>
+                                        <div>
+                                            <p className="font-bold text-slate-800">איך הוא מנהל שיחה?</p>
+                                            <p className="text-sm text-slate-500 mt-1 leading-relaxed">הבוט שולח הודעת וואטסאפ אישית לכל עובד. הוא מציע תמריצים, עונה על שאלות, ומנסה לשכנע — הכל לפי הכללים שהגדרת בשדה למטה.</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-4">
+                                        <div className="w-8 h-8 rounded-full bg-emerald-500 text-white text-sm font-black flex items-center justify-center shrink-0 mt-0.5">✓</div>
+                                        <div>
+                                            <p className="font-bold text-slate-800">מתי מסתיים המשא ומתן?</p>
+                                            <p className="text-sm text-slate-500 mt-1 leading-relaxed">ברגע שעובד אישר — הבוט נועל את המשמרת ומדווח לך. אם אף אחד לא אישר, תקבל התראה ידנית. תוצאות כל שיחה מופיעות ב"לוג שיחות".</p>
+                                        </div>
+                                    </div>
+                                    <div className="bg-brand-gold/10 border border-brand-gold/30 rounded-2xl p-4">
+                                        <p className="text-sm font-bold text-slate-800 flex items-center gap-2"><Zap className="w-4 h-4 text-brand-gold fill-brand-gold shrink-0" />הטיפ שלנו</p>
+                                        <p className="text-sm text-slate-600 mt-1">כתוב כללים ספציפיים ומדויקים. ככל שהבוט מבין יותר את הלוגיקה שלך, כך הוא סוגר יותר משמרות בלי שתתערב.</p>
                                     </div>
                                 </div>
-                                <div className="flex gap-4">
-                                    <div className="w-8 h-8 rounded-full bg-brand-blue text-white text-sm font-black flex items-center justify-center shrink-0 mt-0.5">2</div>
-                                    <div>
-                                        <p className="font-bold text-slate-800">איך הוא מנהל שיחה?</p>
-                                        <p className="text-sm text-slate-500 mt-1 leading-relaxed">הבוט שולח הודעת וואטסאפ אישית לכל עובד. הוא מציע תמריצים, עונה על שאלות, ומנסה לשכנע — הכל לפי הכללים שהגדרת בשדה למטה.</p>
-                                    </div>
+                                <div className="px-6 pb-6">
+                                    <button onClick={() => setShowNegotiationHelp(false)} className="w-full bg-[#1e2354] hover:bg-[#15193b] text-white font-black py-4 rounded-xl transition-all">
+                                        הבנתי, תודה!
+                                    </button>
                                 </div>
-                                <div className="flex gap-4">
-                                    <div className="w-8 h-8 rounded-full bg-emerald-500 text-white text-sm font-black flex items-center justify-center shrink-0 mt-0.5">✓</div>
-                                    <div>
-                                        <p className="font-bold text-slate-800">מתי מסתיים המשא ומתן?</p>
-                                        <p className="text-sm text-slate-500 mt-1 leading-relaxed">ברגע שעובד אישר — הבוט נועל את המשמרת ומדווח לך. אם אף אחד לא אישר, תקבל התראה ידנית. תוצאות כל שיחה מופיעות ב"לוג שיחות".</p>
-                                    </div>
-                                </div>
-                                <div className="bg-brand-gold/10 border border-brand-gold/30 rounded-2xl p-4">
-                                    <p className="text-sm font-bold text-slate-800 flex items-center gap-2"><Zap className="w-4 h-4 text-brand-gold fill-brand-gold shrink-0" />הטיפ שלנו</p>
-                                    <p className="text-sm text-slate-600 mt-1">כתוב כללים ספציפיים ומדויקים. ככל שהבוט מבין יותר את הלוגיקה שלך, כך הוא סוגר יותר משמרות בלי שתתערב.</p>
-                                </div>
-                            </div>
-                            <div className="px-6 pb-6">
-                                <button onClick={() => setShowNegotiationHelp(false)} className="w-full bg-brand-blue text-white font-bold py-3.5 rounded-2xl hover:bg-brand-blue/90 transition-all active:scale-95">הבנתי, תודה!</button>
                             </div>
                         </motion.div>
                     </motion.div>
@@ -783,6 +787,6 @@ function SettingsView() {
                     </button>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }
