@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, Users, MessageSquareText, Settings, LogOut, Bell, Save, Zap, Crown, Download } from 'lucide-react';
 import { NotificationsTray } from './Notifications';
