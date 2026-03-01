@@ -80,6 +80,17 @@ export default function RosterView() {
     const [showHowItWorks, setShowHowItWorks] = useState(false);
 
     // Derived states
+    const weekDays = Array.from({ length: 7 }).map((_, i) => {
+        const d = new Date(currentWeekStart);
+        d.setDate(d.getDate() + i);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return { dateObj: d, dateString: `${year}-${month}-${day}` };
+    });
+    const weekDateStrings = weekDays.map(w => w.dateString);
+    const currentWeekShifts = shifts.filter(s => weekDateStrings.includes(s.date));
+
     const activeStaffWithPhones = staff.filter(s => s.phone && s.phone.trim() !== '');
     const submittedCount = activeStaffWithPhones.filter(s => {
         let clean = s.phone.replace(/\D/g, '');
@@ -198,15 +209,15 @@ export default function RosterView() {
 
     // ── Auto-assign ───────────────────────────────────────────────────────────
     const handleAutoAssign = async () => {
-        if (shifts.length === 0 || staff.length === 0) {
-            setAssignMsg('אין משמרות או עובדים לשיבוץ');
+        if (currentWeekShifts.length === 0 || staff.length === 0) {
+            setAssignMsg('אין משמרות או עובדים לשיבוץ לשבוע זה');
             setTimeout(() => setAssignMsg(null), 3000);
             return;
         }
         setIsAssigning(true);
         setAssignMsg(null);
         try {
-            const results = await runAutoAssign(shifts, staff, user?.businessId);
+            const results = await runAutoAssign(currentWeekShifts, staff, user?.businessId);
             const filled = results.filter(r => r.filledCount > 0).length;
             setAssignMsg(`✅ שיבוץ הושלם — ${filled} משמרות קיבלו כיסוי`);
         } catch (err) {
@@ -219,12 +230,12 @@ export default function RosterView() {
     };
 
     const handlePublish = () => {
-        if (shifts.length === 0) {
+        if (currentWeekShifts.length === 0) {
             setAssignMsg('אין משמרות לפרסום בשבוע זה');
             setTimeout(() => setAssignMsg(null), 3000);
             return;
         }
-        const unassigned = shifts.filter(s => s.filledCount < s.totalRequired);
+        const unassigned = currentWeekShifts.filter(s => s.filledCount < s.totalRequired);
         setPublishUnassignedCount(unassigned.length);
         setShowPublishConfirm(true);
     };
@@ -237,7 +248,7 @@ export default function RosterView() {
             const res = await fetch(`${API_URL}/api/whatsapp/publish-schedule`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ businessId: user?.businessId, shifts, staff }),
+                body: JSON.stringify({ businessId: user?.businessId, shifts: currentWeekShifts, staff }),
             });
             const data = await res.json();
 
@@ -286,21 +297,12 @@ export default function RosterView() {
         return acc;
     }, {} as Record<string, Shift[]>);
 
-    const weekDays = Array.from({ length: 7 }).map((_, i) => {
-        const d = new Date(currentWeekStart);
-        d.setDate(d.getDate() + i);
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return { dateObj: d, dateString: `${year}-${month}-${day}` };
-    });
-
     const isCurrentWeek = getStartOfWeek(new Date()).getTime() === currentWeekStart.getTime();
     const deadline = settings.submissionDeadlineDay ?? -1;
     const deadlinePassed = isDeadlinePassed(deadline);
 
-    const shouldRecommendAssign = (allSubmitted || deadlinePassed) && shifts.length > 0;
-    const allShiftsFilled = shifts.length > 0 && shifts.every(s => s.filledCount >= s.totalRequired);
+    const shouldRecommendAssign = (allSubmitted || deadlinePassed) && currentWeekShifts.length > 0;
+    const allShiftsFilled = currentWeekShifts.length > 0 && currentWeekShifts.every(s => s.filledCount >= s.totalRequired);
 
     // ── Render ────────────────────────────────────────────────────────────────
     return (
