@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar, Users, MessageSquareText, Settings, LogOut, Bell, CheckCircle2, ShieldAlert, Save, Zap, Crown, Download } from 'lucide-react';
+import { Calendar, Users, MessageSquareText, Settings, LogOut, Bell, Save, Zap, Crown, Download } from 'lucide-react';
 import { NotificationsTray } from './Notifications';
 import { useNotifications } from '../hooks/useNotifications';
 import UpgradeModal from './UpgradeModal';
@@ -25,7 +25,14 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
-    const [readIds, setReadIds] = useState<Set<string>>(new Set());
+    const [readIds, setReadIds] = useState<Set<string>>(() => {
+        try {
+            const saved = localStorage.getItem('shiftswap_read_notifications');
+            return saved ? new Set<string>(JSON.parse(saved)) : new Set<string>();
+        } catch {
+            return new Set<string>();
+        }
+    });
     const [isInstallable, setIsInstallable] = useState(false);
 
     useEffect(() => {
@@ -62,7 +69,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     const unreadCount = notifications.filter(n => !n.read).length;
 
     const handleMarkAllRead = () => {
-        setReadIds(new Set(notifications.map(n => n.id)));
+        const newIds = new Set(notifications.map(n => n.id));
+        setReadIds(newIds);
+        localStorage.setItem('shiftswap_read_notifications', JSON.stringify([...newIds]));
     };
 
     const tabs = [
@@ -342,6 +351,7 @@ function SettingsView() {
     // We maintain a local copy of settings to allow editing before saving
     const [localSettings, setLocalSettings] = useState<AppSettings>(settings);
     const [isSaving, setIsSaving] = useState(false);
+    const [showNegotiationHelp, setShowNegotiationHelp] = useState(false);
 
     useEffect(() => {
         setLocalSettings(settings);
@@ -575,140 +585,167 @@ function SettingsView() {
                 </div>
             </div>
 
+            {/* Negotiation Help Modal */}
+            <AnimatePresence>
+                {showNegotiationHelp && (
+                    <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+                        onClick={() => setShowNegotiationHelp(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+                            className="bg-white rounded-3xl p-0 max-w-md w-full shadow-2xl overflow-hidden"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* Header */}
+                            <div className="bg-gradient-to-br from-brand-blue to-indigo-700 p-6 text-white relative">
+                                <button onClick={() => setShowNegotiationHelp(false)} className="absolute top-4 left-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                                </button>
+                                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center mb-3">
+                                    <MessageSquareText className="w-6 h-6" />
+                                </div>
+                                <h3 className="text-xl font-black">איך עובד הבוט המשא ומתן?</h3>
+                                <p className="text-sm text-white/70 mt-1">הכל על הסוכן החכם שסוגר לך משמרות</p>
+                            </div>
+                            {/* Content */}
+                            <div className="p-6 space-y-5 text-right" dir="rtl">
+                                <div className="flex gap-4">
+                                    <div className="w-8 h-8 rounded-full bg-brand-blue text-white text-sm font-black flex items-center justify-center shrink-0 mt-0.5">1</div>
+                                    <div>
+                                        <p className="font-bold text-slate-800">מתי מתחיל המשא ומתן?</p>
+                                        <p className="text-sm text-slate-500 mt-1 leading-relaxed">הבוט מתעורר אוטומטית כשמשמרת נשארת פתוחה X שעות לפני תחילתה (לפי ההגדרה שלך). הוא מתחיל לפנות לעובדים הרלוונטיים לפי זמינות וטיב העיסוק.</p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-4">
+                                    <div className="w-8 h-8 rounded-full bg-brand-blue text-white text-sm font-black flex items-center justify-center shrink-0 mt-0.5">2</div>
+                                    <div>
+                                        <p className="font-bold text-slate-800">איך הוא מנהל שיחה?</p>
+                                        <p className="text-sm text-slate-500 mt-1 leading-relaxed">הבוט שולח הודעת וואטסאפ אישית לכל עובד. הוא מציע תמריצים, עונה על שאלות, ומנסה לשכנע — הכל לפי הכללים שהגדרת בשדה למטה.</p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-4">
+                                    <div className="w-8 h-8 rounded-full bg-emerald-500 text-white text-sm font-black flex items-center justify-center shrink-0 mt-0.5">✓</div>
+                                    <div>
+                                        <p className="font-bold text-slate-800">מתי מסתיים המשא ומתן?</p>
+                                        <p className="text-sm text-slate-500 mt-1 leading-relaxed">ברגע שעובד אישר — הבוט נועל את המשמרת ומדווח לך. אם אף אחד לא אישר, תקבל התראה ידנית. תוצאות כל שיחה מופיעות ב"לוג שיחות".</p>
+                                    </div>
+                                </div>
+                                <div className="bg-brand-gold/10 border border-brand-gold/30 rounded-2xl p-4">
+                                    <p className="text-sm font-bold text-slate-800 flex items-center gap-2"><Zap className="w-4 h-4 text-brand-gold fill-brand-gold shrink-0" />הטיפ שלנו</p>
+                                    <p className="text-sm text-slate-600 mt-1">כתוב כללים ספציפיים ומדויקים. ככל שהבוט מבין יותר את הלוגיקה שלך, כך הוא סוגר יותר משמרות בלי שתתערב.</p>
+                                </div>
+                            </div>
+                            <div className="px-6 pb-6">
+                                <button onClick={() => setShowNegotiationHelp(false)} className="w-full bg-brand-blue text-white font-bold py-3.5 rounded-2xl hover:bg-brand-blue/90 transition-all active:scale-95">הבנתי, תודה!</button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Custom Negotiation Rules — Full Width Beautiful Card */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <div className="p-5 border-b border-slate-100 bg-gradient-to-l from-brand-blue/5 to-transparent flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-brand-blue/10 text-brand-blue rounded-xl shrink-0"><MessageSquareText className="w-5 h-5" /></div>
+                        <div>
+                            <h3 className="font-bold text-slate-800 text-base">חוקי משא ומתן — AI Prompt</h3>
+                            <p className="text-xs text-slate-500">הנחיות ישירות לסוכן הבוט</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setShowNegotiationHelp(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold text-brand-blue bg-brand-blue/10 hover:bg-brand-blue/20 rounded-xl transition-colors shrink-0"
+                    >
+                        <span>עזרה</span>
+                        <span className="w-4 h-4 rounded-full bg-brand-blue text-white text-[10px] font-black flex items-center justify-center">?</span>
+                    </button>
+                </div>
+                <div className="p-5">
+                    <div className="relative">
+                        <textarea
+                            rows={7}
+                            className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl px-5 py-4 text-slate-800 text-sm leading-relaxed focus:outline-none focus:ring-0 focus:border-brand-blue focus:bg-white transition-all resize-none placeholder:text-slate-400 placeholder:leading-relaxed"
+                            placeholder={`לדוגמה:
+• אל תציע בונוסים לעובדים שאיחרו יותר מ-2 פעמים החודש
+• אם עובד לוקח משמרת כפולה, הצע לו להחליף יום חופש
+• בשבתות — אל תפנה לעובדים מתחת לגיל 21
+• עדיף לאייש עם עובדים בכירים לפני ניסיון עם חדשים`}
+                            value={localSettings.customRules}
+                            onChange={(e) => setLocalSettings({ ...localSettings, customRules: e.target.value })}
+                            dir="rtl"
+                        />
+                        {localSettings.customRules && (
+                            <span className="absolute bottom-3 left-3 text-[10px] text-slate-300 font-medium">{localSettings.customRules.length} תווים</span>
+                        )}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-3 flex items-center gap-1.5">
+                        <Zap className="w-3 h-3 text-brand-gold fill-brand-gold shrink-0" />
+                        הנחיות אלו מוזנות ישירות לסוכן ה-AI ומשפיעות על כל שיחה עם עובד.
+                    </p>
+                </div>
+            </div>
+
             <div className="grid md:grid-cols-2 gap-6">
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden transform transition-all duration-300 hover:shadow-md">
                     <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
-                        <div className="p-2 bg-blue-100 text-brand-blue rounded-xl shrink-0"><MessageSquareText className="w-5 h-5" /></div>
-                        <h3 className="font-bold text-slate-800 text-lg">חוקי משא ומתן לבוט</h3>
+                        <div className="p-2 bg-yellow-100 text-yellow-700 rounded-xl shrink-0"><Settings className="w-5 h-5" /></div>
+                        <h3 className="font-bold text-slate-800 text-lg">תצורת AI והתראות</h3>
                     </div>
-                    <div className="p-6 space-y-6">
-                        <div className="space-y-4">
-                            <label className="flex items-start gap-4 cursor-pointer group p-3 -m-3 rounded-xl hover:bg-slate-50 transition-colors">
-                                <div className="relative flex items-center justify-center mt-1 shrink-0">
-                                    <input
-                                        type="checkbox"
-                                        className="peer sr-only"
-                                        checked={localSettings.enableWeekendSwaps}
-                                        onChange={(e) => setLocalSettings({ ...localSettings, enableWeekendSwaps: e.target.checked })}
-                                    />
-                                    <div className="w-5 h-5 border-2 border-slate-300 rounded group-hover:border-brand-blue peer-checked:bg-brand-blue peer-checked:border-brand-blue transition-all"></div>
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-white absolute opacity-0 peer-checked:opacity-100 transition-opacity" />
-                                </div>
-                                <div className="text-slate-700">
-                                    <span className="font-bold flex items-center gap-2 flex-wrap">המרת משמרות מבוקשות (שישי-שבת) <Zap className="w-4 h-4 text-brand-gold fill-brand-gold shrink-0" /></span>
-                                    <p className="text-sm text-slate-500 mt-1 leading-relaxed">הבוט מוסמך להציע לעובד לוותר על משמרת קשה באמצע השבוע תמורת משמרת סופ"ש כדי לסגור חורים.</p>
-                                </div>
-                            </label>
-
-                            <label className="flex items-start gap-4 cursor-pointer group p-3 -m-3 rounded-xl hover:bg-slate-50 transition-colors">
-                                <div className="relative flex items-center justify-center mt-1 shrink-0">
-                                    <input
-                                        type="checkbox"
-                                        className="peer sr-only"
-                                        checked={localSettings.enableCashBonus}
-                                        onChange={(e) => setLocalSettings({ ...localSettings, enableCashBonus: e.target.checked })}
-                                    />
-                                    <div className="w-5 h-5 border-2 border-slate-300 rounded group-hover:border-brand-blue peer-checked:bg-brand-blue peer-checked:border-brand-blue transition-all"></div>
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-white absolute opacity-0 peer-checked:opacity-100 transition-opacity" />
-                                </div>
-                                <div className="text-slate-700">
-                                    <span className="font-bold">בונוס כספי מיידי</span>
-                                    <p className="text-sm text-slate-500 mt-1 leading-relaxed">הבוט יציע "בונוס הקפצה" של 50 ש"ח כברירת מחדל לאיוש משמרות בהתראה של פחות מ-4 שעות.</p>
-                                </div>
-                            </label>
-
-                            <label className="flex items-start gap-4 cursor-pointer group p-3 -m-3 rounded-xl hover:bg-slate-50 transition-colors">
-                                <div className="relative flex items-center justify-center mt-1 shrink-0">
-                                    <input
-                                        type="checkbox"
-                                        className="peer sr-only"
-                                        checked={localSettings.enableTaxi}
-                                        onChange={(e) => setLocalSettings({ ...localSettings, enableTaxi: e.target.checked })}
-                                    />
-                                    <div className="w-5 h-5 border-2 border-slate-300 rounded group-hover:border-brand-blue peer-checked:bg-brand-blue peer-checked:border-brand-blue transition-all"></div>
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-white absolute opacity-0 peer-checked:opacity-100 transition-opacity" />
-                                </div>
-                                <div className="text-slate-700">
-                                    <span className="font-bold text-red-600 flex items-center gap-1"><ShieldAlert className="w-4 h-4 shrink-0" /> הפעלה אוטומטית של מוניות</span>
-                                    <p className="text-sm text-slate-500 mt-1 leading-relaxed">הבוט מבטיח לעובדים תשלום על מונית כפתרון לחוסר זמינות תחבורة ציבורית בלילה או בסופ"ש.</p>
-                                </div>
-                            </label>
+                    <div className="p-6 space-y-5">
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-2">טון הדיבור של הבוט לעובדים</label>
+                            <select
+                                value={localSettings.botTone}
+                                onChange={(e) => setLocalSettings({ ...localSettings, botTone: e.target.value })}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:bg-white transition-all"
+                            >
+                                <option>צעיר וקליל (אחי, מה קורה?)</option>
+                                <option>רשמי ומקצועי (שלום רב)</option>
+                                <option>סחבקי ומתגמל (אלוף, יש מצב ש...)</option>
+                            </select>
                         </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-2">מספר השעות לאזהרה במקרה של חוסר באיש צוות</label>
+                            <input
+                                type="number"
+                                value={localSettings.warningHours}
+                                onChange={(e) => setLocalSettings({ ...localSettings, warningHours: Number(e.target.value) })}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:bg-white transition-all"
+                            />
+                            <p className="text-xs text-slate-500 mt-2">מספר השעות לפני תחילת משמרת ריקה בהן הבוט יתחיל לפנות עצמאית לשאר הצוות.</p>
+                        </div>
+
+
                     </div>
                 </div>
 
-                <div className="space-y-6 flex flex-col justify-between">
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden transform transition-all duration-300 hover:shadow-md">
-                        <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
-                            <div className="p-2 bg-yellow-100 text-yellow-700 rounded-xl shrink-0"><Settings className="w-5 h-5" /></div>
-                            <h3 className="font-bold text-slate-800 text-lg">תצורת AI והתראות</h3>
-                        </div>
-                        <div className="p-6 space-y-5">
-                            <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-2">טון הדיבור של הבוט לעובדים</label>
-                                <select
-                                    value={localSettings.botTone}
-                                    onChange={(e) => setLocalSettings({ ...localSettings, botTone: e.target.value })}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:bg-white transition-all"
-                                >
-                                    <option>צעיר וקליל (אחי, מה קורה?)</option>
-                                    <option>רשמי ומקצועי (שלום רב)</option>
-                                    <option>סחבקי ומתגמל (אלוף, יש מצב ש...)</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-2">מספר השעות לאזהרה במקרה של חוסר באיש צוות</label>
-                                <input
-                                    type="number"
-                                    value={localSettings.warningHours}
-                                    onChange={(e) => setLocalSettings({ ...localSettings, warningHours: Number(e.target.value) })}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:bg-white transition-all"
-                                />
-                                <p className="text-xs text-slate-500 mt-2">מספר השעות לפני תחילת משמרת ריקה בהן הבוט יתחיל לפנות עצמאית לשאר הצוות.</p>
-                            </div>
-
-                            <div className="pt-2">
-                                <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center justify-between">
-                                    <span>חוקי משא ומתן מותאמים אישית (טקסט חופשי)</span>
-                                    <span className="text-xs bg-brand-gold/20 text-brand-gold px-2 py-0.5 rounded-full">AI Prompt</span>
-                                </label>
-                                <textarea
-                                    rows={4}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:bg-white transition-all resize-none"
-                                    placeholder="לדוגמה: אם עובד לוקח משמרת שנייה ברצף, תציע לחסום לו את השבת כדי שינוח. אל תציע בונוסים למי שאיחר החודש."
-                                    value={localSettings.customRules}
-                                    onChange={(e) => setLocalSettings({ ...localSettings, customRules: e.target.value })}
-                                ></textarea>
-                                <p className="text-xs text-slate-500 mt-2">הנחיות ישירות למודל השפה שיקבעו את אסטרטגיית המשא ומתן של הבוט.</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="space-y-3">
-                        <button
-                            disabled={isSaving}
-                            onClick={async () => {
-                                setIsSaving(true);
-                                await updateSettings(localSettings);
-                                setIsSaving(false);
-                            }}
-                            className="w-full bg-brand-blue hover:bg-brand-blue/90 text-white font-bold py-4 px-4 rounded-xl shadow-lg shadow-brand-blue/20 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
-                        >
-                            <Save className="w-5 h-5 shrink-0" />
-                            {isSaving ? 'שומר...' : 'שמור הגדרות מערכת'}
-                        </button>
-                        <button
-                            onClick={async () => {
-                                await logout();
-                                window.location.reload();
-                            }}
-                            className="w-full bg-red-50 hover:bg-red-100 text-red-600 font-bold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all border border-red-200"
-                        >
-                            <LogOut className="w-5 h-5 shrink-0" />
-                            התנתקות מהמערכת
-                        </button>
-                    </div>
+                <div className="space-y-3">
+                    <button
+                        disabled={isSaving}
+                        onClick={async () => {
+                            setIsSaving(true);
+                            await updateSettings(localSettings);
+                            setIsSaving(false);
+                        }}
+                        className="w-full bg-brand-blue hover:bg-brand-blue/90 text-white font-bold py-4 px-4 rounded-xl shadow-lg shadow-brand-blue/20 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                    >
+                        <Save className="w-5 h-5 shrink-0" />
+                        {isSaving ? 'שומר...' : 'שמור הגדרות מערכת'}
+                    </button>
+                    <button
+                        onClick={async () => {
+                            await logout();
+                            window.location.reload();
+                        }}
+                        className="w-full bg-red-50 hover:bg-red-100 text-red-600 font-bold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all border border-red-200"
+                    >
+                        <LogOut className="w-5 h-5 shrink-0" />
+                        התנתקות מהמערכת
+                    </button>
                 </div>
             </div>
         </div>
