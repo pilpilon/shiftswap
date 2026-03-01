@@ -765,44 +765,43 @@ export default function RosterView() {
             {/* ── How It Works Modal ────────────────────────────────────── */}
             <AnimatePresence>
                 {showHowItWorks && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" dir="rtl">
+                    <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+                        dir="rtl"
+                        onClick={() => setShowHowItWorks(false)}
+                    >
                         <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                            className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative overflow-hidden"
+                            initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+                            className="bg-white rounded-3xl p-0 max-w-md w-full shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <button
-                                onClick={() => setShowHowItWorks(false)}
-                                className="absolute top-4 left-4 p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full transition-colors"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-
-                            <div className="text-center mb-8">
-                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand-blue/10 text-brand-blue mb-4">
-                                    <Bot className="w-8 h-8" />
+                            {/* Gradient Header */}
+                            <div className="bg-gradient-to-br from-brand-blue to-indigo-700 p-6 text-white relative shrink-0">
+                                <button
+                                    onClick={() => setShowHowItWorks(false)}
+                                    className="absolute top-4 left-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center mb-3">
+                                    <Bot className="w-6 h-6" />
                                 </div>
-                                <h3 className="text-2xl font-black text-slate-800">איך המערכת עובדת?</h3>
-                                <p className="text-slate-500 mt-2 font-medium">שלושה שלבים פשוטים לניהול המשמרות שלך</p>
+                                <h3 className="text-xl font-black">איך המערכת עובדת?</h3>
+                                <p className="text-sm text-white/70 mt-1">ארבעה שלבים — מהסידור ועד לאיוש אוטומטי</p>
                             </div>
 
-                            <div className="space-y-6 relative">
-                                {/* Connecting line */}
-                                <div className="absolute top-8 bottom-8 right-6 w-0.5 bg-slate-100 -z-10"></div>
-
+                            {/* Scrollable content */}
+                            <div className="p-6 space-y-5 overflow-y-auto">
                                 {/* Step 1 */}
                                 <div className="flex gap-4">
-                                    <div className="relative">
-                                        <div className="w-12 h-12 rounded-full bg-white border-4 border-slate-100 shadow-sm flex items-center justify-center text-xl font-black text-slate-400">1</div>
-                                    </div>
-                                    <div className="flex-1 pt-1.5">
-                                        <h4 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                                            <Calendar className="w-5 h-5 text-brand-blue" />
+                                    <div className="w-8 h-8 rounded-full bg-brand-blue text-white text-sm font-black flex items-center justify-center shrink-0 mt-0.5">1</div>
+                                    <div>
+                                        <p className="font-bold text-slate-800 flex items-center gap-2">
+                                            <Calendar className="w-4 h-4 text-brand-blue shrink-0" />
                                             הגדרת משמרות
-                                        </h4>
-                                        <p className="text-sm text-slate-600 mt-1 leading-relaxed">
+                                        </p>
+                                        <p className="text-sm text-slate-500 mt-1 leading-relaxed">
                                             הזן את המשמרות הנדרשות לכל יום בשבוע (לדוגמה: 2 מלצרים, טבח בוקר).
                                         </p>
                                     </div>
@@ -810,49 +809,71 @@ export default function RosterView() {
 
                                 {/* Step 2 */}
                                 <div className="flex gap-4">
-                                    <div className="relative">
-                                        <div className="w-12 h-12 rounded-full bg-white border-4 border-blue-100 shadow-sm flex items-center justify-center text-xl font-black text-blue-500">2</div>
-                                    </div>
-                                    <div className="flex-1 pt-1.5">
-                                        <h4 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                                            <Smartphone className="w-5 h-5 text-blue-500" />
+                                    <div className="w-8 h-8 rounded-full bg-brand-blue text-white text-sm font-black flex items-center justify-center shrink-0 mt-0.5">2</div>
+                                    <div>
+                                        <p className="font-bold text-slate-800 flex items-center gap-2">
+                                            <Smartphone className="w-4 h-4 text-blue-500 shrink-0" />
                                             איסוף זמינות מעובדים
-                                        </h4>
-                                        <p className="text-sm text-slate-600 mt-1 leading-relaxed">
-                                            העובדים שלך פשוט שולחים הודעה לוואטסאפ של העסק עם הימים שהם פנויים השבוע. המערכת תעדכן את כולם באופן אוטומטי!
+                                        </p>
+                                        <p className="text-sm text-slate-500 mt-1 leading-relaxed">
+                                            העובדים שלך פשוט שולחים הודעה לוואטסאפ של העסק עם הימים שהם פנויים. המערכת תעדכן את כולם באופן אוטומטי!
                                         </p>
                                     </div>
                                 </div>
 
                                 {/* Step 3 */}
                                 <div className="flex gap-4">
-                                    <div className="relative">
-                                        <div className="w-12 h-12 rounded-full bg-white border-4 border-emerald-100 shadow-sm flex items-center justify-center text-xl font-black text-emerald-500">3</div>
-                                    </div>
-                                    <div className="flex-1 pt-1.5">
-                                        <h4 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                                            <Wand2 className="w-5 h-5 text-emerald-500" />
-                                            שיבוץ ושליחה
-                                        </h4>
-                                        <p className="text-sm text-slate-600 mt-1 leading-relaxed">
-                                            לחיצה על <span className="font-bold">"שיבוץ אוטומטי"</span> תסדר את כולם בצורה אופטימלית (ותוכל לתקן ידנית). לאחר מכן <span className="font-bold text-red-600">"שגר סידור"</span> ישלח את המשמרות <span className="font-bold">וקובץ אקסל מרוכז</span> לעובדים!
+                                    <div className="w-8 h-8 rounded-full bg-brand-blue text-white text-sm font-black flex items-center justify-center shrink-0 mt-0.5">3</div>
+                                    <div>
+                                        <p className="font-bold text-slate-800 flex items-center gap-2">
+                                            <Wand2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                                            שיבוץ ושגרת סידור
+                                        </p>
+                                        <p className="text-sm text-slate-500 mt-1 leading-relaxed">
+                                            לחץ <span className="font-bold text-slate-700">״שיבוץ אוטומטי״</span> לתסדר את הכל. לאחר מכן לחץ <span className="font-bold text-red-600">״שגר סידור״</span> — המשמרות נשלחות לכולם בוואטסאפ.
                                         </p>
                                     </div>
                                 </div>
+
+                                {/* Step 4 — the AI negotiation step */}
+                                <div className="flex gap-4">
+                                    <div className="w-8 h-8 rounded-full bg-emerald-500 text-white text-sm font-black flex items-center justify-center shrink-0 mt-0.5">4</div>
+                                    <div>
+                                        <p className="font-bold text-slate-800 flex items-center gap-2">
+                                            <Bot className="w-4 h-4 text-emerald-500 shrink-0" />
+                                            הבוט מטפל בחורים — בלי שתתערב
+                                        </p>
+                                        <p className="text-sm text-slate-500 mt-1 leading-relaxed">
+                                            אם נשארו משמרות לא מאויישות, הבוט מתעורר אוטומטית ומנהל שיחות וואטסאפ אישיות עם עובדים פנויים — עד שהחור נסגר. כל שיחה מתועדת ב<span className="font-bold text-slate-700">״לוג שיחות״</span>.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Tip box */}
+                                <div className="bg-brand-gold/10 border border-brand-gold/30 rounded-2xl p-4">
+                                    <p className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                        <Wand2 className="w-4 h-4 text-brand-gold shrink-0" />
+                                        הטיפ שלנו
+                                    </p>
+                                    <p className="text-sm text-slate-600 mt-1">
+                                        ככל שתגדיר יותר כללים למשא ומתן בהגדרות, כך הבוט יסגור יותר חורים בלי שתצטרך לטפל בזה.
+                                    </p>
+                                </div>
                             </div>
 
-                            <div className="mt-8 pt-6 border-t border-slate-100">
+                            <div className="px-6 pb-6 shrink-0">
                                 <button
                                     onClick={() => setShowHowItWorks(false)}
-                                    className="w-full bg-brand-blue hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-sm active:scale-95"
+                                    className="w-full bg-brand-blue text-white font-bold py-3.5 rounded-2xl hover:bg-brand-blue/90 transition-all active:scale-95"
                                 >
                                     הבנתי, תודה!
                                 </button>
                             </div>
                         </motion.div>
-                    </div>
+                    </motion.div>
                 )}
             </AnimatePresence>
+
         </div>
     );
 }

@@ -719,9 +719,44 @@ function SettingsView() {
                             <p className="text-xs text-slate-500 mt-2">מספר השעות לפני תחילת משמרת ריקה בהן הבוט יתחיל לפנות עצמאית לשאר הצוות.</p>
                         </div>
 
+                        {/* Bot Active Hours */}
+                        <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
+                            <label className="block text-sm font-bold text-slate-700 mb-1">🕐 שעות פעילות הבוט</label>
+                            <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+                                הבוט יפנה לעובדים רק בחלון השעות הזה — כולל כשמחפש מחליף, מזכיר על זמינות, ומגיב לביטול משמרת. מחוץ לחלון זה — הבוט לא יפנה לאיש.
+                            </p>
+                            <div className="flex items-center gap-3">
+                                <div className="flex-1">
+                                    <label className="text-xs text-slate-500 mb-1 block">פעיל משעה</label>
+                                    <select
+                                        value={localSettings.botActiveFrom ?? 8}
+                                        onChange={(e) => setLocalSettings({ ...localSettings, botActiveFrom: Number(e.target.value) })}
+                                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-blue transition-all text-sm"
+                                    >
+                                        {Array.from({ length: 24 }, (_, h) => (
+                                            <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <span className="text-slate-400 font-medium mt-5">עד</span>
+                                <div className="flex-1">
+                                    <label className="text-xs text-slate-500 mb-1 block">עד שעה</label>
+                                    <select
+                                        value={localSettings.botActiveTo ?? 21}
+                                        onChange={(e) => setLocalSettings({ ...localSettings, botActiveTo: Number(e.target.value) })}
+                                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-blue transition-all text-sm"
+                                    >
+                                        {Array.from({ length: 24 }, (_, h) => (
+                                            <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
 
                     </div>
                 </div>
+
 
                 <div className="space-y-3">
                     <button

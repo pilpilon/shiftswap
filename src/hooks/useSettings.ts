@@ -12,6 +12,9 @@ export interface AppSettings {
     customRules: string;
     // Day of week for staff submission deadline: 0=Sun, 1=Mon...6=Sat, -1=disabled
     submissionDeadlineDay: number;
+    // Hours window during which the bot is allowed to contact employees (0-23)
+    botActiveFrom: number;
+    botActiveTo: number;
 }
 
 const defaultSettings: AppSettings = {
@@ -22,6 +25,8 @@ const defaultSettings: AppSettings = {
     warningHours: 24,
     customRules: '',
     submissionDeadlineDay: -1, // disabled by default
+    botActiveFrom: 8,  // 08:00
+    botActiveTo: 21,   // 21:00
 };
 
 export function useSettings() {
