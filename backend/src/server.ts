@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { initWhatsAppSocket, activeSockets, qrCodes, pendingSockets, getPairingCode } from './whatsapp';
-import { getFirestore } from './firebase';
+import { getFirestore, sweepStaleLocks } from './firebase';
 import { deleteFirestoreAuthState } from './firebaseAuthState';
 import { startReminderScheduler } from './scheduler';
 
@@ -29,6 +29,13 @@ async function reconnectStoredSessions() {
         for (const docRef of snap) {
             const businessId = docRef.id;
             console.log(`[SERVER] Auto-reconnecting Firestore session: ${businessId}`);
+
+            // Sweep any stale swap locks from previous server crashes
+            const cleaned = await sweepStaleLocks(businessId);
+            if (cleaned > 0) {
+                console.log(`[SERVER] Cleaned ${cleaned} stale swap lock(s) for ${businessId}`);
+            }
+
             initWhatsAppSocket(businessId);
         }
     } catch (err) {

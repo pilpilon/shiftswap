@@ -195,11 +195,76 @@ export const initWhatsAppSocket = async (businessId: string) => {
         }
 
         try {
-            const { isEmployeePhone } = await import('./firebase');
+            const { isEmployeePhone, resolveLidToPhone, getPendingLidVerification, requestLidVerification, verifyLidPin, saveLidMapping } = await import('./firebase');
             const isEmployee = await isEmployeePhone(businessId, jid);
             if (!isEmployee) {
                 console.log(`[WHATSAPP] Ignoring message from unauthorized number: ${jid}`);
                 return;
+            }
+
+            // ── LID Verification Gate ─────────────────────────────────────────
+            // If this is an @lid JID, we must verify the device before allowing AI access
+            if (jid.endsWith('@lid')) {
+                const lidKey = jid.split('@')[0];
+                const resolvedPhone = await resolveLidToPhone(businessId, jid);
+
+                if (!resolvedPhone) {
+                    // No verified mapping — check if there's a pending verification
+                    const pending = await getPendingLidVerification(businessId, lidKey);
+
+                    if (pending) {
+                        // They might be replying with the PIN
+                        const trimmedInput = incomingText.trim();
+                        const verified = await verifyLidPin(businessId, lidKey, trimmedInput);
+                        if (verified) {
+                            await sock.sendMessage(jid, { text: '✅ המכשיר אומת בהצלחה! מעכשיו תוכל/י להשתמש במערכת כרגיל. שלח/י הודעה שוב כדי להתחיל.' });
+                            console.log(`[WHATSAPP] LID ${lidKey} verified successfully → ${verified}`);
+                        } else {
+                            await sock.sendMessage(jid, { text: 'קוד שגוי. נסה שנית, או פנה למנהל לקבלת קוד חדש.' });
+                        }
+                        return;
+                    }
+
+                    // No pending verification — try to start one
+                    const pushName = msg.pushName ?? undefined;
+                    if (pushName) {
+                        const result = await requestLidVerification(businessId, lidKey, pushName);
+                        if (result) {
+                            // Send PIN to managers
+                            const { getFirestore } = await import('./firebase');
+                            const db = getFirestore();
+                            if (db) {
+                                const managersSnap = await db.collection('businesses').doc(businessId)
+                                    .collection('staff')
+                                    .where('role', 'in', ['מנהל', 'אדמין', 'manager', 'admin'])
+                                    .get();
+
+                                for (const mDoc of managersSnap.docs) {
+                                    const manager = mDoc.data();
+                                    if (manager.phone) {
+                                        let mp = manager.phone.replace(/[^0-9]/g, '');
+                                        if (mp.startsWith('0')) mp = '972' + mp.slice(1);
+                                        const mJid = `${mp}@s.whatsapp.net`;
+                                        await sock.sendMessage(mJid, {
+                                            text: `🔑 קוד אימות מכשיר חדש:\nעובד/ת "${pushName}" מנסה להתחבר ממכשיר חדש.\nקוד PIN: ${result.pin}\nהעבר/י את הקוד לעובד/ת כדי לאמת את המכשיר.`
+                                        }).catch(() => { });
+                                    }
+                                }
+                            }
+
+                            await sock.sendMessage(jid, {
+                                text: 'שלום! 👋 לא זיהיתי את המכשיר הזה.\nלצורך אימות, בקש/י מהמנהל שלך קוד PIN בן 4 ספרות ושלח/י אותו כאן.'
+                            });
+                            console.log(`[WHATSAPP] LID verification initiated for ${lidKey} (pushName: ${pushName})`);
+                        } else {
+                            await sock.sendMessage(jid, { text: 'שלום! לא הצלחתי לזהות אותך במערכת. פנה/י למנהל שלך.' });
+                        }
+                    } else {
+                        await sock.sendMessage(jid, { text: 'שלום! לא הצלחתי לזהות אותך. פנה/י למנהל שלך.' });
+                    }
+                    return;
+                }
+                // If resolvedPhone exists, continue to AI processing as normal
             }
 
             const { processIncomingMessage } = await import('./ai');

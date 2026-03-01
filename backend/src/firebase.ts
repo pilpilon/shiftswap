@@ -1,17 +1,10 @@
 import * as admin from 'firebase-admin';
 
-// Initialize Firebase Admin SDK
-// On Render (or any cloud), set FIREBASE_SERVICE_ACCOUNT env var to the raw JSON
-// of your Firebase Admin service account key.
-// Alternatively, set GOOGLE_APPLICATION_CREDENTIALS to the local file path.
-
-let db: admin.firestore.Firestore | null = null;
+let db: admin.firestore.Firestore;
 
 try {
-    let credential: admin.credential.Credential;
-
+    let credential;
     if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-        // Cloud environment (Render): use JSON string stored in env var
         const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
         credential = admin.credential.cert(serviceAccount);
         console.log('[FIREBASE] Initializing with FIREBASE_SERVICE_ACCOUNT env var');
@@ -30,10 +23,21 @@ try {
 
 export const getFirestore = () => db;
 
+// ─── Helper: Staff collection reference (multi-tenant) ─────────────────────
+function staffCol(businessId: string) {
+    return db.collection('businesses').doc(businessId).collection('staff');
+}
+
+// ─── Helper: Negotiation logs with TTL ─────────────────────────────────────
+function logTtlExpiry(): string {
+    const d = new Date();
+    d.setDate(d.getDate() + 20);
+    return d.toISOString();
+}
+
 // Data Access Helpers
 export async function getBusinessRules(businessId: string): Promise<string> {
     if (!db) {
-        // Fallback mock if no db connected
         return `
             - Max instant bonus: 50.
             - Taxis: Approved for closing shifts only.
@@ -60,19 +64,18 @@ export async function getOpenShifts(_businessId: string): Promise<{ id: string; 
             { id: '1', role: 'waiter', date: 'Friday Night', isUrgent: true }
         ];
     }
-    // Real implementation would query the active shifts collection
     return [];
 }
 
 export async function saveNegotiationLog(businessId: string, employeePhone: string, message: string, sender: 'ai' | 'employee' | 'system') {
     if (!db) return;
     try {
-        await db.collection('negotiation_logs').add({
-            businessId,
+        await db.collection('businesses').doc(businessId).collection('negotiation_logs').add({
             employeePhone,
             message,
             sender,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            expiresAt: logTtlExpiry()
         });
     } catch (err) {
         console.error("Failed to save negotiation log:", err);
@@ -89,7 +92,7 @@ function normalizePhone(phone: string): string {
 
 /**
  * Persist a WhatsApp LID → real phone mapping in Firestore so we only need
- * to resolve it once (via name lookup) and then always have it available.
+ * to resolve it once (via verified binding) and then always have it available.
  */
 export async function saveLidMapping(businessId: string, lid: string, phone: string): Promise<void> {
     if (!db) return;
@@ -104,16 +107,14 @@ export async function saveLidMapping(businessId: string, lid: string, phone: str
 
 /**
  * Resolve a WhatsApp @lid JID to a real normalized phone number.
- * 1. Checks the Firestore LID cache first (fast path).
- * 2. Falls back to name-based lookup in the staff collection.
- * 3. If resolved via name, persists the mapping for future calls.
- * Returns null if resolution fails.
+ * SECURITY: Only returns from the verified cache. Does NOT auto-match by name.
+ * If a new @lid is encountered, use requestLidVerification() to start the PIN flow.
  */
-export async function resolveLidToPhone(businessId: string, lid: string, senderName?: string): Promise<string | null> {
+export async function resolveLidToPhone(businessId: string, lid: string, _senderName?: string): Promise<string | null> {
     if (!db) return null;
-    const lidKey = lid.split('@')[0]; // strip @lid suffix for use as doc ID
+    const lidKey = lid.split('@')[0];
 
-    // 1. Check cache
+    // Only check verified cache — no fuzzy name matching
     try {
         const cached = await db.collection('businesses').doc(businessId)
             .collection('lid_mappings').doc(lidKey).get();
@@ -126,37 +127,151 @@ export async function resolveLidToPhone(businessId: string, lid: string, senderN
         }
     } catch { /* ignore cache errors */ }
 
-    // 2. Fallback: look up by name
-    if (senderName) {
-        const phone = await getStaffPhoneByName(businessId, senderName);
-        if (phone) {
-            // 3. Persist for next time
-            await saveLidMapping(businessId, lidKey, phone);
-            return phone;
-        }
-    }
-
+    console.log(`[FIREBASE] No verified LID mapping for ${lidKey}. Verification required.`);
     return null;
 }
 
-export async function isEmployeePhone(businessId: string, phoneJid: string): Promise<boolean> {
-    if (!db) return true; // Fallback: allow everyone if DB not connected
+// ─── LID Verification (PIN-based) ─────────────────────────────────────────
 
-    // WhatsApp Multi-Device sends @lid JIDs (internal identifier) instead of phone numbers
-    // for some contacts. We can't verify the phone, so we allow them through.
+/**
+ * Attempt to find a matching staff member by EXACT name and start PIN verification.
+ * Returns the PIN and matched phone if a match is found, null otherwise.
+ */
+export async function requestLidVerification(
+    businessId: string,
+    lidKey: string,
+    senderName: string
+): Promise<{ pin: string; phone: string } | null> {
+    if (!db || !senderName) return null;
+
+    // Strip emojis and extra whitespace
+    const stripEmojis = (s: string) =>
+        s.replace(/[^\p{L}\p{N}\s]/gu, '').trim();
+
+    const cleanName = stripEmojis(senderName).toLowerCase();
+
+    try {
+        const snap = await staffCol(businessId).get();
+        let matchedPhone: string | null = null;
+
+        for (const doc of snap.docs) {
+            const data = doc.data();
+            if (!data.name || !data.phone) continue;
+
+            const staffClean = stripEmojis(data.name).toLowerCase();
+            if (cleanName === staffClean) {
+                let p = data.phone.replace(/[^0-9]/g, '');
+                if (p.startsWith('0')) p = '972' + p.slice(1);
+                matchedPhone = p;
+                break;
+            }
+        }
+
+        if (!matchedPhone) return null;
+
+        // Generate 4-digit PIN
+        const pin = String(Math.floor(1000 + Math.random() * 9000));
+        const expiresAt = new Date();
+        expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+
+        await db.collection('businesses').doc(businessId)
+            .collection('lid_verifications').doc(lidKey).set({
+                pin,
+                phone: matchedPhone,
+                expiresAt: expiresAt.toISOString(),
+                createdAt: new Date().toISOString()
+            });
+
+        console.log(`[FIREBASE] LID verification created for ${lidKey} → PIN: ${pin}`);
+        return { pin, phone: matchedPhone };
+
+    } catch (err) {
+        console.error('[FIREBASE] requestLidVerification error:', err);
+    }
+    return null;
+}
+
+/**
+ * Verify a PIN submitted by a user to bind their @lid to their phone.
+ * Returns the verified phone on success, null on failure.
+ */
+export async function verifyLidPin(
+    businessId: string,
+    lidKey: string,
+    submittedPin: string
+): Promise<string | null> {
+    if (!db) return null;
+
+    try {
+        const ref = db.collection('businesses').doc(businessId)
+            .collection('lid_verifications').doc(lidKey);
+        const doc = await ref.get();
+
+        if (!doc.exists) return null;
+
+        const data = doc.data()!;
+        const now = new Date();
+
+        if (new Date(data.expiresAt) < now) {
+            console.log(`[FIREBASE] LID verification expired for ${lidKey}`);
+            await ref.delete();
+            return null;
+        }
+
+        if (data.pin !== submittedPin.trim()) {
+            console.log(`[FIREBASE] LID verification PIN mismatch for ${lidKey}`);
+            return null;
+        }
+
+        // PIN matches! Bind the LID permanently
+        await saveLidMapping(businessId, lidKey, data.phone);
+        await ref.delete(); // clean up verification doc
+        console.log(`[FIREBASE] LID ${lidKey} verified and bound to ${data.phone}`);
+        return data.phone;
+
+    } catch (err) {
+        console.error('[FIREBASE] verifyLidPin error:', err);
+    }
+    return null;
+}
+
+/**
+ * Check if there is a pending LID verification for this lid.
+ */
+export async function getPendingLidVerification(
+    businessId: string,
+    lidKey: string
+): Promise<{ phone: string; pin: string } | null> {
+    if (!db) return null;
+    try {
+        const doc = await db.collection('businesses').doc(businessId)
+            .collection('lid_verifications').doc(lidKey).get();
+        if (!doc.exists) return null;
+        const data = doc.data()!;
+        if (new Date(data.expiresAt) < new Date()) {
+            return null; // expired
+        }
+        return { phone: data.phone, pin: data.pin };
+    } catch {
+        return null;
+    }
+}
+
+
+export async function isEmployeePhone(businessId: string, phoneJid: string): Promise<boolean> {
+    if (!db) return true;
+
+    // WhatsApp Multi-Device @lid JIDs — allow through (verified later)
     if (phoneJid.endsWith('@lid')) {
         console.log(`[AUTH] Allowing @lid message from ${phoneJid} (cannot verify phone)`);
         return true;
     }
 
-    // WhatsApp JID format: 972501234567@s.whatsapp.net
     const senderPhone = phoneJid.split('@')[0];
     const normalizedSender = normalizePhone(senderPhone);
 
     try {
-        const staffSnapshot = await db.collection('staff')
-            .where('businessId', '==', businessId)
-            .get();
+        const staffSnapshot = await staffCol(businessId).get();
 
         for (const doc of staffSnapshot.docs) {
             const data = doc.data();
@@ -189,20 +304,19 @@ export function getCurrentWeekKey(): string {
 /** Save an employee's availability for the upcoming week */
 export async function saveAvailability(
     businessId: string,
-    phone: string, // normalized phone (972XXXXXXXXX)
+    phone: string,
     weekKey: string,
-    days: string[],   // e.g. ["שני", "שלישי", "שישי"]
-    notes?: string    // Arbitrary text parsed by AI
+    days: string[],
+    notes?: string
 ): Promise<void> {
     if (!db) return;
     const payload: any = { days, submittedAt: new Date().toISOString() };
     if (notes) payload.notes = notes;
 
     await db
-        .collection('availability')
-        .doc(businessId)
-        .collection(weekKey)
-        .doc(phone)
+        .collection('businesses').doc(businessId)
+        .collection('availability').doc(weekKey)
+        .collection('submissions').doc(phone)
         .set(payload);
 }
 
@@ -213,9 +327,9 @@ export async function getAvailability(
 ): Promise<Record<string, string[]>> {
     if (!db) return {};
     const snap = await db
-        .collection('availability')
-        .doc(businessId)
-        .collection(weekKey)
+        .collection('businesses').doc(businessId)
+        .collection('availability').doc(weekKey)
+        .collection('submissions')
         .get();
     const result: Record<string, string[]> = {};
     snap.forEach(doc => { result[doc.id] = doc.data().days ?? []; });
@@ -226,16 +340,14 @@ export async function getAvailability(
 export async function getStaffPhoneByName(businessId: string, name: string): Promise<string | null> {
     if (!db || !name) return null;
 
-    // Strip emojis and extra whitespace from the incoming pushName
     const stripEmojis = (s: string) =>
         s.replace(/[^\p{L}\p{N}\s]/gu, '').trim();
 
     const cleanName = stripEmojis(name).toLowerCase();
-    // Split into meaningful words (≥3 chars) for word-overlap matching
     const nameWords = cleanName.split(/\s+/).filter(w => w.length >= 3);
 
     try {
-        const snap = await db.collection('staff').where('businessId', '==', businessId).get();
+        const snap = await staffCol(businessId).get();
         const allNames = snap.docs.map(d => `"${d.data().name}"`).join(', ');
         console.log(`[FIREBASE] getStaffPhoneByName: searching for "${name}" (cleaned: "${cleanName}") in [${allNames}]`);
 
@@ -247,7 +359,6 @@ export async function getStaffPhoneByName(businessId: string, name: string): Pro
             const staffClean = stripEmojis(data.name).toLowerCase();
             const staffWords = staffClean.split(/\s+/).filter(w => w.length >= 3);
 
-            // Match if: exact clean match, OR any word from pushName appears in staff name, OR vice versa
             const isMatch =
                 cleanName === staffClean ||
                 nameWords.some(w => staffClean.includes(w)) ||
@@ -263,7 +374,7 @@ export async function getStaffPhoneByName(businessId: string, name: string): Pro
         if (matches.length === 0) return null;
 
         if (matches.length > 1) {
-            console.warn(`[FIREBASE] ⚠️ AMBIGUOUS name match for "${name}" — found ${matches.length} employees: ${matches.map(m => `"${m.name}"`).join(', ')}. Returning first. Consider adding last name to differentiate.`);
+            console.warn(`[FIREBASE] ⚠️ AMBIGUOUS name match for "${name}" — found ${matches.length} employees: ${matches.map(m => `"${m.name}"`).join(', ')}. Returning first.`);
         } else {
             console.log(`[FIREBASE] Name match: "${name}" → "${matches[0].name}" → ${matches[0].phone}`);
         }
@@ -284,7 +395,7 @@ export async function getStaffWhoHaventSubmitted(
     if (!db) return [];
 
     const [staffSnap, submittedMap] = await Promise.all([
-        db.collection('staff').where('businessId', '==', businessId).get(),
+        staffCol(businessId).get(),
         getAvailability(businessId, weekKey),
     ]);
 
@@ -347,15 +458,13 @@ export interface EmployeePublishedShift {
 export async function savePublishedSchedule(
     businessId: string,
     weekKey: string,
-    scheduleMap: Record<string, EmployeePublishedShift[]> // normalizedPhone -> shifts
+    scheduleMap: Record<string, EmployeePublishedShift[]>
 ): Promise<void> {
     if (!db) return;
     try {
         await db
-            .collection('published_schedules')
-            .doc(businessId)
-            .collection('weeks')
-            .doc(weekKey)
+            .collection('businesses').doc(businessId)
+            .collection('published_schedules').doc(weekKey)
             .set({ schedule: scheduleMap, updatedAt: new Date().toISOString() });
     } catch (err) {
         console.error("Failed to save published schedule:", err);
@@ -366,15 +475,13 @@ export async function savePublishedSchedule(
 export async function getPublishedSchedule(
     businessId: string,
     weekKey: string,
-    phone: string // normalized phone
+    phone: string
 ): Promise<EmployeePublishedShift[] | null> {
     if (!db) return null;
     try {
         const doc = await db
-            .collection('published_schedules')
-            .doc(businessId)
-            .collection('weeks')
-            .doc(weekKey)
+            .collection('businesses').doc(businessId)
+            .collection('published_schedules').doc(weekKey)
             .get();
         if (doc.exists) {
             const data = doc.data();
@@ -391,7 +498,7 @@ export async function getPublishedSchedule(
 export interface SwapRequest {
     id: string;
     date: string;       // DD/MM/YYYY text
-    shiftTitle: string; // The "hours" string
+    shiftTitle: string;  // The "hours" string
     role: string;
     originalEmployee: string;
     originalPhone: string;
@@ -407,11 +514,10 @@ export async function registerSwapRequest(
     phone: string,
     dateString: string,
     reason: string,
-    senderName?: string   // fallback display name for @lid senders
+    senderName?: string
 ): Promise<void> {
     if (!db) return;
 
-    // We try to find the actual shift from the current week
     const weekKey = getCurrentWeekKey();
     const publishedShifts = await getPublishedSchedule(businessId, weekKey, phone);
 
@@ -421,10 +527,7 @@ export async function registerSwapRequest(
     let actualDate = dateString;
 
     if (publishedShifts && publishedShifts.length > 0) {
-        // Find the closest or specifically requested shift
-        // For MVP, we just take their first shift or the one matching the string loosely
         const targetShift = publishedShifts.find(s => s.date.includes(dateString)) || publishedShifts[0];
-
         if (targetShift) {
             role = targetShift.role;
             shiftTitle = targetShift.hours;
@@ -433,8 +536,8 @@ export async function registerSwapRequest(
     }
 
     try {
-        const staffSnap = await db.collection('staff').where('businessId', '==', businessId).get();
-        let employeeName = senderName || 'עובד לא מזוהה'; // use pushName as fallback for @lid
+        const staffSnap = await staffCol(businessId).get();
+        let employeeName = senderName || 'עובד לא מזוהה';
         for (const doc of staffSnap.docs) {
             const data = doc.data();
             if (data.phone) {
@@ -462,7 +565,6 @@ export async function registerSwapRequest(
         console.log(`[FIREBASE] Saved swap request for ${employeeName} on ${actualDate} (ID: ${docRef.id})`);
 
         // --- Trigger AI Negotiation Asynchronously ---
-        // We do not await this so the WhatsApp response to the original employee is fast
         initiateNegotiation(businessId, docRef.id, actualDate, shiftTitle, role, phone, employeeName, reason).catch(e => {
             console.error('[AI] Async negotiation failed:', e);
         });
@@ -486,7 +588,7 @@ async function initiateNegotiation(
 ) {
     if (!db) return;
     try {
-        const staffSnap = await db.collection('staff').where('businessId', '==', businessId).get();
+        const staffSnap = await staffCol(businessId).get();
         const candidates: { name: string; phone: string }[] = [];
 
         for (const doc of staffSnap.docs) {
@@ -499,8 +601,6 @@ async function initiateNegotiation(
             // Skip the person who cancelled
             if (p === originalPhone) continue;
 
-            // Basic filtering: In MVP we just ask everyone with a phone number (or filter by role if structured)
-            // For now, let's ask everyone to maximize coverage chance
             candidates.push({ name: emp.name, phone: p });
         }
 
@@ -516,13 +616,17 @@ async function initiateNegotiation(
             const swapDoc = await db.collection('businesses').doc(businessId).collection('swaps').doc(swapId).get();
             if (!swapDoc.exists || swapDoc.data()?.status !== 'pending') {
                 console.log(`[AI] Swap ${swapId} is no longer pending. Stopping negotiation.`);
-                break; // Stop asking other candidates
+                break;
             }
 
-            // Set the 'currentlyAsking' field so that the AI knows this is the active offer for the candidate
-            await swapDoc.ref.update({ currentlyAsking: candidate.phone });
+            // Set the 'currentlyAsking' field + offerExpiresAt for crash resilience
+            const offerExpiresAt = new Date();
+            offerExpiresAt.setMinutes(offerExpiresAt.getMinutes() + 15);
+            await swapDoc.ref.update({
+                currentlyAsking: candidate.phone,
+                offerExpiresAt: offerExpiresAt.toISOString()
+            });
 
-            // Dynamically import whatsapp to prevent circular dependency issues
             const { activeSockets } = await import('./whatsapp');
             const sock = activeSockets[businessId];
             if (!sock) {
@@ -539,13 +643,13 @@ async function initiateNegotiation(
 
             await sock.sendMessage(jid, { text: offerMessage });
 
-            // Log the outbound offer
-            await db.collection('negotiation_logs').add({
-                businessId,
+            // Log the outbound offer (multi-tenant path + TTL)
+            await db.collection('businesses').doc(businessId).collection('negotiation_logs').add({
                 employeePhone: jid,
                 message: offerMessage,
                 sender: 'ai',
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                expiresAt: logTtlExpiry()
             });
 
             console.log(`[AI] Sent swap offer for ${swapId} to ${candidate.name} (${candidate.phone})`);
@@ -556,7 +660,6 @@ async function initiateNegotiation(
             for (let i = 0; i < 20; i++) { // 20 * 30s = 10 minutes
                 await new Promise(r => setTimeout(r, 30000));
 
-                // Re-check swap status
                 const checkDoc = await db.collection('businesses').doc(businessId).collection('swaps').doc(swapId).get();
                 if (!checkDoc.exists) break;
 
@@ -566,15 +669,17 @@ async function initiateNegotiation(
                     break;
                 }
 
-                // Check if they explicitly rejected it
                 if (data?.rejectedBy && Array.isArray(data.rejectedBy) && data.rejectedBy.includes(candidate.phone)) {
                     rejected = true;
                     break;
                 }
             }
 
-            // Clear the currently asking marker
-            await db.collection('businesses').doc(businessId).collection('swaps').doc(swapId).update({ currentlyAsking: admin.firestore.FieldValue.delete() }).catch(() => { });
+            // Clear the currently asking marker + offer expiry
+            await db.collection('businesses').doc(businessId).collection('swaps').doc(swapId).update({
+                currentlyAsking: admin.firestore.FieldValue.delete(),
+                offerExpiresAt: admin.firestore.FieldValue.delete()
+            }).catch(() => { });
 
             if (answered) {
                 console.log(`[AI] Stopping negotiation for ${swapId} because it was covered.`);
@@ -591,7 +696,6 @@ async function initiateNegotiation(
         if (finalSwapDoc.exists && finalSwapDoc.data()?.status === 'pending') {
             console.log(`[AI] Escalation: No coverage found for swap ${swapId}. Notifying manager & original employee.`);
 
-            // Need to get the socket since 'sock' might be out of scope here
             const { activeSockets } = await import('./whatsapp');
             const sock = activeSockets[businessId];
 
@@ -599,7 +703,6 @@ async function initiateNegotiation(
             const originalJid = `${originalPhone}@s.whatsapp.net`;
             let employeeMsg = `שלום ${_originalName}, ניסיתי לחפש מחליף מכל הצוות למשמרת שלך ב-${date}, אבל לצערי אף אחד לא פנוי כרגע.\nהבקשה הועברה לידיעת המנהל. כרגע את/ה עדיין משובץ/ת למשמרת זו.`;
 
-            // Check if the reason was sickness/emergency to avoid claiming they are still scheduled
             if (_reason.includes('חול') || _reason.includes('חולה') || _reason.includes('מחלה') || _reason.includes('מיון') || _reason.includes('רפואי') || _reason.includes('רופא')) {
                 employeeMsg = `שלום ${_originalName}, ניסיתי לחפש מחליף למשמרת ב-${date} אך ללא הצלחה. מאחר וציינת סיבה בהקשר דחוף/רפואי, הועבר דיווח למנהל לטיפול מיידי. תרגיש/י טוב!`;
             }
@@ -608,18 +711,16 @@ async function initiateNegotiation(
                 await sock.sendMessage(originalJid, { text: employeeMsg }).catch((e: unknown) => console.error("Failed to notify original employee on fail", e));
             }
 
-            // Log it
-            await db.collection('negotiation_logs').add({
-                businessId,
+            await db.collection('businesses').doc(businessId).collection('negotiation_logs').add({
                 employeePhone: originalJid,
                 message: employeeMsg,
                 sender: 'system',
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                expiresAt: logTtlExpiry()
             });
 
             // 2. Notify the managers
-            const managersSnap = await db.collection('staff')
-                .where('businessId', '==', businessId)
+            const managersSnap = await staffCol(businessId)
                 .where('role', 'in', ['מנהל', 'אדמין', 'manager', 'admin'])
                 .get();
 
@@ -631,7 +732,7 @@ async function initiateNegotiation(
                     const mJid = `${mp}@s.whatsapp.net`;
                     const managerMsg = `⚠️ עדכון מערכת: לא נמצא מחליף ל-${_originalName} למשמרת ${shiftTitle} ב- ${date}.\nסיבת הביטול: ${_reason}.\nנדרשת התערבותך לכיסוי המשמרת.`;
                     if (sock) {
-                        await sock.sendMessage(mJid, { text: managerMsg }).catch((e: unknown) => console.error("Failed to alert manager on fail", e));
+                        await sock.sendMessage(mJid, { text: managerMsg }).catch((e: unknown) => console.error("Manager alert error", e));
                     }
                     await new Promise(r => setTimeout(r, 500));
                 }
@@ -642,6 +743,9 @@ async function initiateNegotiation(
     }
 }
 
+/**
+ * Assigns a shift swap using a Firestore Transaction to prevent race conditions.
+ */
 export async function assignSwap(
     businessId: string,
     coveredByPhone: string,
@@ -655,26 +759,50 @@ export async function assignSwap(
             .collection('swaps')
             .doc(offerId);
 
-        const swapDoc = await swapDocRef.get();
+        // Use Firestore Transaction to prevent race conditions
+        const result = await db.runTransaction(async (transaction) => {
+            const swapDoc = await transaction.get(swapDocRef);
 
-        if (!swapDoc.exists || swapDoc.data()?.status !== 'pending') {
-            return { success: false, error: 'אין בקשות להחלפה כרגע בסטטוס פתוח ל-ID זה.' };
+            if (!swapDoc.exists || swapDoc.data()?.status !== 'pending') {
+                return { success: false as const, error: 'אין בקשות להחלפה כרגע בסטטוס פתוח ל-ID זה.' };
+            }
+
+            const swapData = swapDoc.data() as SwapRequest;
+
+            // Prevent the original employee from covering their own shift
+            const normalizedCoveredPhone = coveredByPhone.replace(/[^0-9]/g, '');
+            const normalizedOriginalPhone = (swapData.originalPhone || '').replace(/[^0-9]/g, '');
+            if (normalizedCoveredPhone === normalizedOriginalPhone) {
+                return { success: false as const, error: 'self_replacement' };
+            }
+
+            // Find the name of the covering employee (read outside transaction is OK for name lookup)
+            let coveredByName = 'עובד מחליף';
+
+            // NOTE: We can't do arbitrary queries inside a transaction, so we resolve the name
+            // after the transaction commits. For now, we set a placeholder.
+            transaction.update(swapDocRef, {
+                status: 'covered',
+                coveredByPhone: coveredByPhone,
+                updatedAt: new Date().toISOString()
+            });
+
+            return {
+                success: true as const,
+                date: swapData.date,
+                shiftTitle: swapData.shiftTitle,
+                originalEmployee: swapData.originalEmployee,
+                coveredByName
+            };
+        });
+
+        if (!result.success) {
+            return result;
         }
 
-        const swapData = swapDoc.data() as SwapRequest;
-
-        // Prevent the original employee from covering their own shift
-        const normalizedCoveredPhone = coveredByPhone.replace(/[^0-9]/g, '');
-        const normalizedOriginalPhone = (swapData.originalPhone || '').replace(/[^0-9]/g, '');
-        if (normalizedCoveredPhone === normalizedOriginalPhone) {
-            return { success: false, error: 'self_replacement' };
-        }
-        // Find the name of the covering employee
+        // Post-transaction: resolve covering employee name and update
+        const staffSnap = await staffCol(businessId).get();
         let coveredByName = 'עובד מחליף';
-        const staffSnap = await db.collection('staff')
-            .where('businessId', '==', businessId)
-            .get();
-
         for (const doc of staffSnap.docs) {
             const data = doc.data();
             if (data.phone) {
@@ -687,23 +815,16 @@ export async function assignSwap(
             }
         }
 
-        // Mark the swap as covered
-        await swapDoc.ref.update({
-            status: 'covered',
-            coveredBy: coveredByName,
-            updatedAt: new Date().toISOString()
-        });
+        // Update coveredBy name (non-transactional, cosmetic)
+        await swapDocRef.update({ coveredBy: coveredByName });
 
-        console.log(`[FIREBASE] Swap ${swapDoc.id} covered by ${coveredByName}`);
+        console.log(`[FIREBASE] Swap ${offerId} covered by ${coveredByName}`);
 
         // --- Manager Alert ---
-        // Dynamically import whatsapp to prevent circular dependency issues
         const { activeSockets } = await import('./whatsapp');
         const sock = activeSockets[businessId];
         if (sock) {
-            // Find managers to notify
-            const managersSnap = await db.collection('staff')
-                .where('businessId', '==', businessId)
+            const managersSnap = await staffCol(businessId)
                 .where('role', 'in', ['מנהל', 'אדמין', 'manager', 'admin'])
                 .get();
 
@@ -714,7 +835,7 @@ export async function assignSwap(
                     if (mp.startsWith('0')) mp = '972' + mp.slice(1);
 
                     const mJid = `${mp}@s.whatsapp.net`;
-                    const alertMsg = `ℹ️ עדכון סידור אוטומטי (AI):\n${coveredByName} לקח/ה את משמרת ${swapData.shiftTitle} ב-${swapData.date} במקום ${swapData.originalEmployee}.`;
+                    const alertMsg = `ℹ️ עדכון סידור אוטומטי (AI):\n${coveredByName} לקח/ה את משמרת ${result.shiftTitle} ב-${result.date} במקום ${(result as any).originalEmployee}.`;
                     await sock.sendMessage(mJid, { text: alertMsg }).catch((e: unknown) => console.error("Manager alert error", e));
                     await new Promise(r => setTimeout(r, 500));
                 }
@@ -723,14 +844,48 @@ export async function assignSwap(
 
         return {
             success: true,
-            date: swapData.date,
-            shiftTitle: swapData.shiftTitle
+            date: result.date,
+            shiftTitle: result.shiftTitle
         };
 
     } catch (err) {
         console.error("Failed to assign swap:", err);
         return { success: false, error: 'Internal system error' };
     }
+}
+
+// ─── Stale Lock Sweep ─────────────────────────────────────────────────────
+
+/**
+ * On server startup, finds any swap offers with expired `offerExpiresAt` and
+ * clears the hanging lock so the negotiation queue can resume.
+ */
+export async function sweepStaleLocks(businessId: string): Promise<number> {
+    if (!db) return 0;
+    let cleaned = 0;
+    try {
+        const now = new Date().toISOString();
+        const snap = await db.collection('businesses').doc(businessId)
+            .collection('swaps')
+            .where('status', '==', 'pending')
+            .get();
+
+        for (const doc of snap.docs) {
+            const data = doc.data();
+            if (data.offerExpiresAt && data.offerExpiresAt < now && data.currentlyAsking) {
+                await doc.ref.update({
+                    currentlyAsking: admin.firestore.FieldValue.delete(),
+                    offerExpiresAt: admin.firestore.FieldValue.delete(),
+                    rejectedBy: admin.firestore.FieldValue.arrayUnion(data.currentlyAsking)
+                });
+                console.log(`[SWEEP] Cleared stale lock on swap ${doc.id} (was asking ${data.currentlyAsking})`);
+                cleaned++;
+            }
+        }
+    } catch (err) {
+        console.error('[SWEEP] Error sweeping stale locks:', err);
+    }
+    return cleaned;
 }
 
 /**
@@ -744,10 +899,8 @@ export async function generateAndSendScheduleCsv(businessId: string, remoteJid: 
 
         // 1. Fetch published schedule for the current week
         const scheduleDoc = await db
-            .collection('published_schedules')
-            .doc(businessId)
-            .collection('weeks')
-            .doc(weekKey)
+            .collection('businesses').doc(businessId)
+            .collection('published_schedules').doc(weekKey)
             .get();
 
         if (!scheduleDoc.exists) {
@@ -762,9 +915,9 @@ export async function generateAndSendScheduleCsv(businessId: string, remoteJid: 
             return { success: false, error: 'empty_schedule' };
         }
 
-        // 2. We need staff directory to map phones to names for the CSV rows
-        const staffSnap = await db.collection('staff').where('businessId', '==', businessId).get();
-        const staffByPhone: Record<string, string> = {}; // normalizedPhone -> name
+        // 2. Staff directory for CSV
+        const staffSnap = await staffCol(businessId).get();
+        const staffByPhone: Record<string, string> = {};
 
         for (const doc of staffSnap.docs) {
             const sData = doc.data();
@@ -788,9 +941,8 @@ export async function generateAndSendScheduleCsv(businessId: string, remoteJid: 
         };
         const csvHeader = csvHeaderParts.map(escapeCsv).join(',');
 
-        const staffScheduleCsvMap = new Map<string, string[]>(); // phone -> array of 7 days
+        const staffScheduleCsvMap = new Map<string, string[]>();
 
-        // Reconstruct the spreadsheet data
         for (const [phone, shifts] of Object.entries(scheduleMap)) {
             if (!staffScheduleCsvMap.has(phone)) {
                 staffScheduleCsvMap.set(phone, ['', '', '', '', '', '', '']);
@@ -798,7 +950,6 @@ export async function generateAndSendScheduleCsv(businessId: string, remoteJid: 
             const schedArr = staffScheduleCsvMap.get(phone)!;
 
             for (const shift of shifts) {
-                // shift.date is DD/MM/YYYY. We need to parse to JS Date to get dayOfWeek
                 const [day, month, year] = shift.date.split('/');
                 const d = new Date(`${year}-${month}-${day}T00:00:00Z`);
                 const dayOfWeek = d.getDay();
