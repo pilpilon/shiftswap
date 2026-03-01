@@ -240,164 +240,194 @@ export default function StaffView() {
                     </form>
                 )}
 
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex-1">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-right min-w-[800px]">
-                            <thead className="bg-slate-50 border-b border-slate-100 text-slate-600 font-medium text-sm">
-                                <tr>
-                                    <th className="p-4 rounded-tr-2xl w-[25%]">שם העובד</th>
-                                    <th className="p-4 w-[20%]">מספר נייד</th>
-                                    <th className="p-4 w-[25%]">תפקידים</th>
-                                    <th className="p-4 w-[15%]">רמה</th>
-                                    <th className="p-4 text-center w-[15%] rounded-tl-2xl">פעולות</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 text-slate-800 text-sm">
-                                {loading ? (
-                                    <tr>
-                                        <td colSpan={5} className="p-8 text-center text-slate-400">
-                                            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
-                                            טוען נתוני עובדים...
-                                        </td>
-                                    </tr>
-                                ) : filteredStaff.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={5} className="p-8 text-center text-slate-400">
-                                            {searchQuery ? 'לא נמצאו עובדים מתאימים לחיפוש' : 'לא נמצאו עובדים במערכת. לחץ על "הוספת עובד" כדי להתחיל.'}
-                                        </td>
-                                    </tr>
-                                ) : filteredStaff.map((member) => {
-                                    const isEditing = editingId === member.id;
-                                    return (
-                                        <tr key={member.id} className="hover:bg-slate-50/50 transition-colors">
-                                            <td className="p-4 font-medium">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 shrink-0 rounded-full bg-brand-blue/10 text-brand-blue flex items-center justify-center font-bold text-xs">
-                                                        {member.name.charAt(0)}
-                                                    </div>
-                                                    {isEditing ? (
-                                                        <input
-                                                            type="text"
-                                                            value={editName}
-                                                            onChange={e => setEditName(e.target.value)}
-                                                            className="border border-slate-200 rounded-lg px-2 py-1 focus:ring-2 focus:ring-brand-blue focus:outline-none w-full bg-white"
-                                                            autoFocus
-                                                        />
-                                                    ) : (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setSelectedEmployee(member)}
-                                                            className="hover:text-brand-blue hover:underline transition-colors text-right flex items-center gap-1 group"
-                                                        >
-                                                            {member.name}
-                                                            {(() => {
-                                                                const avail = getEmployeeAvailability(member.phone);
-                                                                if (avail === null) return <span title="לא הגיש זמינות" className="w-2 h-2 rounded-full bg-slate-300 shrink-0" />;
-                                                                if (avail.isPending) return <span title="ממתין להשלמת שיחה" className="w-2 h-2 rounded-full bg-amber-400 shrink-0 animate-pulse" />;
-                                                                if (avail.days.length === 0) return <span title="הגיש — אין ימים זמינים" className="w-2 h-2 rounded-full bg-red-400 shrink-0" />;
-                                                                return <span title="הגיש זמינות" className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />;
-                                                            })()}
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="p-4 text-slate-600" dir="ltr">
+                <div className="flex-1 overflow-y-auto w-full -mx-4 px-4 sm:mx-0 sm:px-0">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-8">
+                        {loading ? (
+                            <div className="col-span-full p-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                                <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-brand-blue" />
+                                <p className="font-medium">טוען נתוני עובדים...</p>
+                            </div>
+                        ) : filteredStaff.length === 0 ? (
+                            <div className="col-span-full p-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                                <UserMinus className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                                <p className="font-medium text-lg text-slate-600 mb-1">לא נמצאו עובדים</p>
+                                <p className="text-sm">{searchQuery ? 'נסה לשנות את מילות החיפוש' : 'לחץ על "הוספת עובד" כדי להתחיל להרכיב את הצוות שלך.'}</p>
+                            </div>
+                        ) : filteredStaff.map((member) => {
+                            const isEditing = editingId === member.id;
+
+                            // Availability status calculation
+                            let availStatusIcon = <span title="לא הגיש זמינות" className="w-3 h-3 rounded-full bg-slate-300 shrink-0 shadow-inner" />;
+                            let availText = "לא הגיש זמינות";
+                            const avail = getEmployeeAvailability(member.phone);
+                            if (avail) {
+                                if (avail.isPending) {
+                                    availStatusIcon = <span title="ממתין להשלמת שיחה" className="w-3 h-3 rounded-full bg-amber-400 shrink-0 animate-pulse shadow-[0_0_8px_rgba(251,191,36,0.5)]" />;
+                                    availText = "ממתין להשלמה";
+                                } else if (avail.days.length === 0) {
+                                    availStatusIcon = <span title="הגיש — אין ימים זמינים" className="w-3 h-3 rounded-full bg-rose-400 shrink-0 shadow-[0_0_8px_rgba(251,113,133,0.5)]" />;
+                                    availText = "לא זמין השבוע";
+                                } else {
+                                    availStatusIcon = <span title="הגיש זמינות" className="w-3 h-3 rounded-full bg-emerald-400 shrink-0 shadow-[0_0_8px_rgba(52,211,153,0.5)]" />;
+                                    availText = "זמין לעבודה";
+                                }
+                            }
+
+                            return (
+                                <div key={member.id} className={`bg-white rounded-2xl border transition-all duration-200 overflow-hidden ${isEditing ? 'border-brand-blue shadow-md ring-1 ring-brand-blue/20' : 'border-slate-100 shadow-sm hover:shadow-md hover:border-slate-200'}`}>
+                                    {/* Card Header */}
+                                    <div className="flex justify-between items-start p-4 border-b border-slate-50 bg-slate-50/50">
+                                        <div className="flex items-center gap-3 w-full">
+                                            <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-brand-blue/20 to-blue-500/10 text-brand-blue flex items-center justify-center font-black text-sm shadow-sm border border-white">
+                                                {member.name.charAt(0)}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
                                                 {isEditing ? (
                                                     <input
-                                                        type="tel"
-                                                        value={editPhone}
-                                                        onChange={e => setEditPhone(e.target.value)}
-                                                        className="border border-slate-200 rounded-lg px-2 py-1 focus:ring-2 focus:ring-brand-blue focus:outline-none w-full text-right bg-white"
-                                                        dir="rtl"
+                                                        type="text"
+                                                        value={editName}
+                                                        onChange={e => setEditName(e.target.value)}
+                                                        className="w-full font-bold text-slate-800 bg-white border border-slate-300 rounded-lg px-2 py-1 focus:ring-2 focus:ring-brand-blue focus:outline-none focus:border-transparent text-sm"
+                                                        placeholder="שם העובד"
+                                                        autoFocus
                                                     />
                                                 ) : (
-                                                    member.phone
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectedEmployee(member)}
+                                                        className="font-bold text-slate-800 text-base text-right hover:text-brand-blue transition-colors flex flex-col w-full text-ellipsis overflow-hidden whitespace-nowrap"
+                                                        title="לחץ לצפייה בזמינות"
+                                                    >
+                                                        {member.name}
+                                                        <span className="flex items-center gap-1.5 text-xs text-slate-500 font-medium mt-0.5">
+                                                            {availStatusIcon}
+                                                            {availText}
+                                                        </span>
+                                                    </button>
                                                 )}
-                                            </td>
-                                            <td className="p-4">
-                                                {isEditing ? (
-                                                    <div className="flex flex-wrap gap-1 p-1 border border-slate-200 rounded-lg bg-white items-center">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Card Body */}
+                                    <div className="p-4 space-y-4">
+                                        {/* Phone */}
+                                        <div>
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">מספר נייד</div>
+                                            {isEditing ? (
+                                                <input
+                                                    type="tel"
+                                                    value={editPhone}
+                                                    onChange={e => setEditPhone(e.target.value)}
+                                                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-brand-blue focus:outline-none focus:border-transparent text-sm text-right"
+                                                    dir="rtl"
+                                                    placeholder="מספר טלפון"
+                                                />
+                                            ) : (
+                                                <div className="text-slate-700 font-medium text-sm" dir="ltr">{member.phone}</div>
+                                            )}
+                                        </div>
+
+                                        {/* Skill Level */}
+                                        <div>
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">רמת מיומנות</div>
+                                            {isEditing ? (
+                                                <select
+                                                    value={editSkillLevel}
+                                                    onChange={e => setEditSkillLevel(e.target.value as SkillLevel)}
+                                                    className={`w-full border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-brand-blue focus:outline-none font-medium bg-white ${SKILL_COLORS[editSkillLevel]}`}
+                                                >
+                                                    {(Object.entries(SKILL_LEVEL_LABELS) as [SkillLevel, string][]).map(([key, label]) => (
+                                                        <option key={key} value={key} className="bg-white text-slate-800">{label}</option>
+                                                    ))}
+                                                </select>
+                                            ) : (
+                                                <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-bold border shadow-sm ${SKILL_COLORS[member.skillLevel || 'standard']}`}>
+                                                    {SKILL_LEVEL_LABELS[member.skillLevel || 'standard']}
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {/* Roles */}
+                                        <div>
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">תפקידים</div>
+                                            {isEditing ? (
+                                                <div className="flex flex-col gap-2 p-2.5 border border-slate-200 rounded-xl bg-slate-50/50">
+                                                    <div className="flex flex-wrap gap-1.5">
                                                         {editRoles.map((role, idx) => (
-                                                            <span key={idx} className="bg-brand-blue/10 text-brand-blue px-1.5 py-0.5 rounded text-[11px] flex items-center gap-1">
+                                                            <span key={idx} className="bg-brand-blue text-white shadow-sm px-2 py-1 rounded-md text-[11px] font-medium flex items-center gap-1.5">
                                                                 {role}
-                                                                <button type="button" onClick={() => removeRole(idx, editRoles, setEditRoles)} className="hover:text-red-500"><X className="w-3 h-3" /></button>
+                                                                <button type="button" onClick={() => removeRole(idx, editRoles, setEditRoles)} className="hover:text-red-200 transition-colors bg-black/10 rounded-full p-0.5"><X className="w-3 h-3" /></button>
                                                             </span>
                                                         ))}
-                                                        <div className="flex-1 flex min-w-[80px]">
-                                                            <input
-                                                                type="text"
-                                                                list="role-suggestions"
-                                                                placeholder="הוסף..."
-                                                                value={editRoleInput}
-                                                                onChange={e => setEditRoleInput(e.target.value)}
-                                                                onKeyDown={e => handleAddRole(e, editRoles, setEditRoles, editRoleInput, setEditRoleInput)}
-                                                                className="w-full text-xs focus:outline-none bg-transparent"
-                                                            />
-                                                        </div>
                                                     </div>
-                                                ) : (
-                                                    <div className="flex flex-wrap gap-1.5">
-                                                        {(member.roles || []).map((r, i) => (
-                                                            <span key={i} className="px-2 py-1 bg-slate-100 border border-slate-200 text-slate-600 rounded-md text-[11px] font-medium whitespace-nowrap">
+                                                    <div className="flex min-w-[100px] bg-white rounded-lg border border-slate-200 overflow-hidden shadow-inner">
+                                                        <input
+                                                            type="text"
+                                                            list="role-suggestions"
+                                                            placeholder="הוסף תפקיד..."
+                                                            value={editRoleInput}
+                                                            onChange={e => setEditRoleInput(e.target.value)}
+                                                            onKeyDown={e => handleAddRole(e, editRoles, setEditRoles, editRoleInput, setEditRoleInput)}
+                                                            className="w-full text-xs px-2 py-1.5 focus:outline-none bg-transparent"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {(!member.roles || member.roles.length === 0) ? (
+                                                        <span className="text-xs text-slate-400 italic">לא הוגדרו תפקידים</span>
+                                                    ) : (
+                                                        member.roles.map((r, i) => (
+                                                            <span key={i} className="px-2 py-1 bg-slate-100 border border-slate-200 text-slate-700 rounded-md text-[11px] font-bold shadow-sm whitespace-nowrap">
                                                                 {r}
                                                             </span>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </td>
-                                            <td className="p-4">
-                                                {isEditing ? (
-                                                    <select
-                                                        value={editSkillLevel}
-                                                        onChange={e => setEditSkillLevel(e.target.value as SkillLevel)}
-                                                        className={`w-full border rounded-lg px-2 py-1 text-xs focus:ring-2 focus:ring-brand-blue focus:outline-none font-medium bg-white ${SKILL_COLORS[editSkillLevel]}`}
-                                                    >
-                                                        {(Object.entries(SKILL_LEVEL_LABELS) as [SkillLevel, string][]).map(([key, label]) => (
-                                                            <option key={key} value={key} className="bg-white text-slate-800">{label}</option>
-                                                        ))}
-                                                    </select>
-                                                ) : (
-                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${SKILL_COLORS[member.skillLevel || 'standard']}`}>
-                                                        {SKILL_LEVEL_LABELS[member.skillLevel || 'standard']}
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="p-4 text-center">
-                                                <div className="flex items-center justify-center w-full gap-1">
-                                                    {isEditing ? (
-                                                        <>
-                                                            <button onClick={() => saveEdit(member.id)} className="text-green-600 hover:bg-green-50 p-1.5 rounded-lg transition-colors" title="שמור">
-                                                                <Check className="w-4 h-4" />
-                                                            </button>
-                                                            <button onClick={cancelEdit} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg transition-colors" title="ביטול">
-                                                                <X className="w-4 h-4" />
-                                                            </button>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <button onClick={() => startEdit(member)} className="text-slate-400 hover:text-brand-blue p-1.5 rounded-lg hover:bg-blue-50 transition-colors" title="עריכת עובד">
-                                                                <Edit2 className="w-4 h-4" />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => {
-                                                                    if (window.confirm('האם אתה בטוח שברצונך למחוק את ' + member.name + '?')) {
-                                                                        removeStaffMember(member.id);
-                                                                    }
-                                                                }}
-                                                                className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
-                                                                title="מחיקת עובד"
-                                                            >
-                                                                <UserMinus className="w-4 h-4" />
-                                                            </button>
-                                                        </>
+                                                        ))
                                                     )}
                                                 </div>
-                                            </td>
-                                        </tr>
-                                    )
-                                })}
-                            </tbody>
-                        </table>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Card Footer / Actions */}
+                                    <div className="bg-slate-50 border-t border-slate-100 p-3">
+                                        <div className="flex items-center justify-end gap-2 w-full">
+                                            {isEditing ? (
+                                                <>
+                                                    <button onClick={cancelEdit} className="flex-1 text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 py-2 rounded-xl transition-colors font-medium flex items-center justify-center gap-1.5 shadow-sm text-sm">
+                                                        <X className="w-4 h-4" /> ביטול
+                                                    </button>
+                                                    <button onClick={() => saveEdit(member.id)} className="flex-1 text-white bg-emerald-500 hover:bg-emerald-600 py-2 rounded-xl transition-colors font-bold flex items-center justify-center gap-1.5 shadow-sm text-sm">
+                                                        <Check className="w-4 h-4" /> שמור
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <button
+                                                        onClick={() => {
+                                                            if (window.confirm('האם אתה בטוח שברצונך למחוק את ' + member.name + '?')) {
+                                                                removeStaffMember(member.id);
+                                                            }
+                                                        }}
+                                                        className="text-slate-500 hover:text-rose-600 bg-white border border-slate-200 hover:border-rose-200 py-2 px-3 rounded-xl hover:bg-rose-50 transition-colors flex items-center justify-center shadow-sm"
+                                                        title="מחיקת עובד"
+                                                    >
+                                                        <UserMinus className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => startEdit(member)}
+                                                        className="flex-1 text-slate-700 hover:text-brand-blue bg-white border border-slate-200 hover:border-brand-blue/30 py-2 px-3 rounded-xl hover:bg-blue-50 transition-colors font-medium flex items-center justify-center gap-1.5 shadow-sm text-sm"
+                                                        title="עריכת עובד"
+                                                    >
+                                                        <Edit2 className="w-4 h-4" /> ערוך פרטים
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )
+                        })}
                     </div>
                 </div>
             </div>
