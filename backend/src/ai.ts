@@ -47,7 +47,17 @@ export async function processIncomingMessage(
         : 'אין משמרות פתוחות כרגע.';
 
     // Dynamically inject properties to ensure zero-trust and relative time calculation
-    const phone = remoteJid.split('@')[0];
+    let phone = remoteJid.split('@')[0];
+    if (remoteJid.endsWith('@lid')) {
+        const resolved = await resolveLidToPhone(businessId, remoteJid, senderName);
+        if (resolved) {
+            phone = resolved;
+            console.log(`[AI] Resolved @lid ${remoteJid} to real phone ${phone}`);
+        } else {
+            console.warn(`[AI] Could NOT resolve @lid ${remoteJid} to a real phone number!`);
+        }
+    }
+
     const { getActiveOfferId } = await import('./firebase');
     const activeOfferId = await getActiveOfferId(businessId, phone);
     const activeOfferStr = activeOfferId || "NONE";
@@ -189,7 +199,6 @@ Open Shifts: ${shiftsStr}
         // Handle function calls if the AI decided to invoke one
         if (response.functionCalls && response.functionCalls.length > 0) {
             const call = response.functionCalls[0];
-            const phone = remoteJid.split('@')[0];
             const { registerSwapRequest, assignSwap, rejectShiftSwap, saveAvailability, generateAndSendScheduleCsv } = await import('./firebase');
 
             if (call.name === 'registerAvailability') {
