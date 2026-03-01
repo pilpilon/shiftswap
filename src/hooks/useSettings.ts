@@ -36,7 +36,7 @@ export function useSettings() {
 
     useEffect(() => {
         if (!user?.id) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
+
             setLoading(false);
             return;
         }

@@ -3,7 +3,7 @@ import { useAuth } from '../../../src/context/AuthContext';
 import { useStaff, type StaffMember } from '../../../src/hooks/useStaff';
 import { type SkillLevel, SKILL_LEVEL_LABELS } from '../../../src/hooks/useShifts';
 import { useAvailability } from '../../../src/hooks/useAvailability';
-import { Search, Filter, UserPlus, Loader2, UserMinus, Edit2, Check, X, Plus, Calendar } from 'lucide-react';
+import { Search, Filter, UserPlus, Loader2, UserMinus, Edit2, Check, X, Calendar } from 'lucide-react';
 
 const SKILL_COLORS: Record<SkillLevel, string> = {
     star: 'bg-yellow-100 text-yellow-700 border-yellow-300',
@@ -38,24 +38,7 @@ export default function StaffView() {
     const [editRoleInput, setEditRoleInput] = useState('');
     const [editSkillLevel, setEditSkillLevel] = useState<SkillLevel>('standard');
 
-    const handleAddRole = (e: React.KeyboardEvent<HTMLInputElement>, rolesMap: string[], setRoles: (r: string[]) => void, inputVal: string, setInputVal: (v: string) => void) => {
-        if (e.key === 'Enter' || e.key === ',') {
-            e.preventDefault();
-            const role = inputVal.trim();
-            if (role && !rolesMap.includes(role)) {
-                setRoles([...rolesMap, role]);
-            }
-            setInputVal('');
-        }
-    };
 
-    const addRoleButton = (rolesMap: string[], setRoles: (r: string[]) => void, inputVal: string, setInputVal: (v: string) => void) => {
-        const role = inputVal.trim();
-        if (role && !rolesMap.includes(role)) {
-            setRoles([...rolesMap, role]);
-        }
-        setInputVal('');
-    };
 
     const removeRole = (index: number, rolesMap: string[], setRoles: (r: string[]) => void) => {
         setRoles(rolesMap.filter((_, i) => i !== index));
@@ -193,26 +176,22 @@ export default function StaffView() {
                                         </span>
                                     ))}
                                     <div className="flex-1 flex min-w-[120px]">
-                                        <input
-                                            type="text"
-                                            list="role-suggestions"
-                                            placeholder="הזן תפקיד..."
+                                        <select
                                             value={newRoleInput}
-                                            onChange={e => setNewRoleInput(e.target.value)}
-                                            onKeyDown={e => handleAddRole(e, newRoles, setNewRoles, newRoleInput, setNewRoleInput)}
-                                            className="w-full text-sm focus:outline-none bg-transparent"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => addRoleButton(newRoles, setNewRoles, newRoleInput, setNewRoleInput)}
-                                            className="text-slate-400 hover:text-brand-blue p-1"
+                                            onChange={e => {
+                                                const val = e.target.value;
+                                                if (val) {
+                                                    if (!newRoles.includes(val)) setNewRoles([...newRoles, val]);
+                                                    setNewRoleInput('');
+                                                }
+                                            }}
+                                            className="w-full text-sm py-1 focus:outline-none bg-transparent"
+                                            dir="rtl"
                                         >
-                                            <Plus className="w-4 h-4" />
-                                        </button>
+                                            <option value="" disabled>בחר תפקיד...</option>
+                                            {COMMON_ROLES.filter(r => !newRoles.includes(r)).map(r => <option key={r} value={r}>{r}</option>)}
+                                        </select>
                                     </div>
-                                    <datalist id="role-suggestions">
-                                        {COMMON_ROLES.map(r => <option key={r} value={r} />)}
-                                    </datalist>
                                 </div>
                             </div>
 
@@ -369,16 +348,21 @@ export default function StaffView() {
                                                         ))}
                                                     </div>
                                                     <div className="flex min-w-[80px] bg-white rounded-md border border-slate-200 overflow-hidden shadow-inner">
-                                                        <input
-                                                            type="text"
-                                                            list="role-suggestions"
-                                                            placeholder="תפקיד..."
+                                                        <select
                                                             value={editRoleInput}
-                                                            onChange={e => setEditRoleInput(e.target.value)}
-                                                            onKeyDown={e => handleAddRole(e, editRoles, setEditRoles, editRoleInput, setEditRoleInput)}
+                                                            onChange={e => {
+                                                                const val = e.target.value;
+                                                                if (val) {
+                                                                    if (!editRoles.includes(val)) setEditRoles([...editRoles, val]);
+                                                                    setEditRoleInput('');
+                                                                }
+                                                            }}
                                                             className="w-full text-[10px] px-1.5 py-1 focus:outline-none bg-transparent text-right"
                                                             dir="rtl"
-                                                        />
+                                                        >
+                                                            <option value="" disabled>בחר תפקיד...</option>
+                                                            {COMMON_ROLES.filter(r => !editRoles.includes(r)).map(r => <option key={r} value={r}>{r}</option>)}
+                                                        </select>
                                                     </div>
                                                 </div>
                                             ) : (

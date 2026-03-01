@@ -5,6 +5,7 @@ import { NotificationsTray } from './Notifications';
 import { useNotifications } from '../hooks/useNotifications';
 import UpgradeModal from './UpgradeModal';
 import { useAuth } from '../context/AuthContext';
+import { auth } from '../lib/firebase';
 import StaffView from './views/StaffView';
 import RosterView from './views/RosterView';
 import NegotiationsView from './views/NegotiationsView';
@@ -37,7 +38,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
     useEffect(() => {
         if (window.deferredPrompt) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
+
             setIsInstallable(true);
         }
         const handleInstallable = () => setIsInstallable(true);
@@ -365,7 +366,6 @@ function SettingsView() {
         let isMounted = true;
         const checkStatus = async () => {
             try {
-                const { auth } = await import('../lib/firebase');
                 const idToken = await auth.currentUser?.getIdToken();
                 const res = await fetch(`${API_URL}/api/whatsapp/status/${businessId}`, {
                     headers: { ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {}) }
@@ -387,7 +387,6 @@ function SettingsView() {
         if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = setInterval(async () => {
             try {
-                const { auth } = await import('../lib/firebase');
                 const idToken = await auth.currentUser?.getIdToken();
                 const pollRes = await fetch(`${API_URL}/api/whatsapp/status/${businessId}`, {
                     headers: { ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {}) }
@@ -421,7 +420,6 @@ function SettingsView() {
         if (!phoneNumber) return alert("נא להזין מספר טלפון");
         setIsGeneratingPairingCode(true);
         try {
-            const { auth } = await import('../lib/firebase');
             const idToken = await auth.currentUser?.getIdToken();
             const res = await fetch(`${API_URL}/api/whatsapp/pairing-code`, {
                 method: 'POST',
@@ -523,7 +521,6 @@ function SettingsView() {
                                             <button
                                                 onClick={async () => {
                                                     try {
-                                                        const { auth } = await import('../lib/firebase');
                                                         const idToken = await auth.currentUser?.getIdToken();
                                                         await fetch(`${API_URL}/api/whatsapp/disconnect`, {
                                                             method: 'POST',
@@ -554,7 +551,6 @@ function SettingsView() {
                                                     onClick={async () => {
                                                         setIsGenerating(true);
                                                         try {
-                                                            const { auth } = await import('../lib/firebase');
                                                             const idToken = await auth.currentUser?.getIdToken();
                                                             const res = await fetch(`${API_URL}/api/whatsapp/connect`, {
                                                                 method: 'POST',

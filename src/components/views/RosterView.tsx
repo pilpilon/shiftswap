@@ -5,6 +5,7 @@ import { useStaff, type StaffMember } from '../../../src/hooks/useStaff';
 import { useSettings } from '../../../src/hooks/useSettings';
 import { useAvailability } from '../../../src/hooks/useAvailability';
 import { runAutoAssign, WEEKDAY_LABELS_HE, isDeadlinePassed } from '../../../src/hooks/useAutoAssign';
+import { auth } from '../../../src/lib/firebase';
 import {
     Calendar, Plus, CheckCircle2, Loader2, Trash2,
     ChevronRight, ChevronLeft, Edit2, Wand2, Settings2, AlertCircle, Send, HelpCircle, X, Smartphone, Bot
@@ -245,7 +246,6 @@ export default function RosterView() {
         setIsPublishing(true);
         setAssignMsg(null);
         try {
-            const { auth } = await import('../../../src/lib/firebase');
             const idToken = await auth.currentUser?.getIdToken();
 
             const res = await fetch(`${API_URL}/api/whatsapp/publish-schedule`, {

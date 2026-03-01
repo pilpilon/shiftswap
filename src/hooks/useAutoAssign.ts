@@ -108,7 +108,7 @@ export async function runAutoAssign(
 
         const { totalFilled, updatedRequirements } = computeFilledCount(existingRequirements, availableStaff, dateAssignedSet);
 
-        await updateDoc(doc(db, 'businesses', businessId!, 'shifts', shift.id), {
+        await updateDoc(doc(db, 'shifts', shift.id), {
             filledCount: totalFilled,
             roleRequirements: updatedRequirements
         });
