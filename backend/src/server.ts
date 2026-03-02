@@ -413,6 +413,8 @@ app.post('/api/paddle/customer-portal', requireAuth, async (req, res) => {
         // In API v2: POST /customers/{customer_id}/portal-sessions or via transaction
         let customerToUse = customerId;
 
+        const userEmail = (req as any).user?.email || userData?.email;
+
         // If we only have subscription ID from old webhooks, fetch it to get the customer
         if (!customerToUse && subscriptionId) {
             const subRes = await fetch(`${PADDLE_API_URL}/subscriptions/${subscriptionId}`, {
@@ -429,8 +431,23 @@ app.post('/api/paddle/customer-portal', requireAuth, async (req, res) => {
             }
         }
 
+        // Fallback for grandfathered test users (they are isPro but have no IDs in DB)
+        if (!customerToUse && userEmail) {
+            const searchRes = await fetch(`${PADDLE_API_URL}/customers?status=active,archived&search=${encodeURIComponent(userEmail)}`, {
+                headers: { 'Authorization': `Bearer ${PADDLE_API_KEY}`, 'Content-Type': 'application/json' }
+            });
+            if (searchRes.ok) {
+                const searchData = await searchRes.json() as any;
+                if (searchData.data && searchData.data.length > 0) {
+                    customerToUse = searchData.data[0].id;
+                    // Cache it for next time
+                    await db.collection('users').doc(userId).update({ paddleCustomerId: customerToUse });
+                }
+            }
+        }
+
         if (!customerToUse) {
-            return res.status(400).json({ error: 'Could not associate subscription with Customer profile.' });
+            return res.status(400).json({ error: 'No active Paddle subscription found to manage (Account may be empty or unlinked).' });
         }
 
         // Generate the portal session
