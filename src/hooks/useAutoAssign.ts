@@ -47,7 +47,7 @@ function normalizePhone(phone: string): string {
  */
 async function fetchWeekAvailability(businessId: string): Promise<Record<string, string[]>> {
     const weekKey = getCurrentWeekKey();
-    const weekRef = collection(db, 'availability', businessId, weekKey);
+    const weekRef = collection(db, 'businesses', businessId, 'availability', weekKey, 'submissions');
     const snap = await getDocs(weekRef);
     const map: Record<string, string[]> = {};
     snap.forEach(docSnap => {

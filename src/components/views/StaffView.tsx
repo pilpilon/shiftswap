@@ -254,8 +254,12 @@ export default function StaffView() {
 
                             return (
                                 <div key={member.id} className={`bg-white rounded-2xl border transition-all duration-200 overflow-hidden ${isEditing ? 'border-brand-blue shadow-md ring-1 ring-brand-blue/20' : 'border-slate-100 shadow-sm hover:shadow-md hover:border-slate-200'}`}>
-                                    {/* Card Header */}
-                                    <div className="flex justify-between items-start p-2.5 border-b border-slate-50 bg-slate-50/50">
+                                    {/* Card Header — entire header is clickable when not editing */}
+                                    <div
+                                        className={`flex justify-between items-start p-2.5 border-b border-slate-50 bg-slate-50/50 ${!isEditing ? 'cursor-pointer hover:bg-blue-50/40 transition-colors' : ''}`}
+                                        onClick={!isEditing ? () => setSelectedEmployee(member) : undefined}
+                                        title={!isEditing ? 'לחץ לצפייה בזמינות' : undefined}
+                                    >
                                         <div className="flex flex-col gap-2 w-full">
                                             <div className="flex items-center gap-2">
                                                 <div className="w-8 h-8 shrink-0 rounded-full bg-gradient-to-br from-brand-blue/20 to-blue-500/10 text-brand-blue flex items-center justify-center font-black text-xs shadow-sm border border-white">
@@ -272,14 +276,11 @@ export default function StaffView() {
                                                             autoFocus
                                                         />
                                                     ) : (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setSelectedEmployee(member)}
-                                                            className="font-bold text-slate-800 text-sm hover:text-brand-blue transition-colors flex flex-col w-full text-ellipsis overflow-hidden whitespace-nowrap text-right"
-                                                            title="לחץ לצפייה בזמינות"
+                                                        <span
+                                                            className="font-bold text-slate-800 text-sm hover:text-brand-blue transition-colors block w-full truncate text-right"
                                                         >
                                                             {member.name}
-                                                        </button>
+                                                        </span>
                                                     )}
                                                 </div>
                                             </div>
