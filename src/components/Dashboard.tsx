@@ -12,6 +12,7 @@ import NegotiationsView from './views/NegotiationsView';
 import SwapView from './views/SwapView';
 import { useShifts } from '../hooks/useShifts';
 import { useSwaps } from '../hooks/useSwaps';
+import HelpCenterModal from './HelpCenterModal';
 
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -26,6 +27,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
     const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const [isHelpOpen, setIsHelpOpen] = useState(false);
     const [readIds, setReadIds] = useState<Set<string>>(() => {
         try {
             const saved = localStorage.getItem('shiftswap_read_notifications');
@@ -145,7 +147,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                         </button>
 
                         <button
-                            onClick={() => { alert('בקרוב: מרכז עזרה עם מדריכים מקיפים!'); setIsProfileOpen(false); }}
+                            onClick={() => { setIsHelpOpen(true); setIsProfileOpen(false); }}
                             className="w-full text-right px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
                         >
                             <span className="w-4 h-4 flex items-center justify-center text-slate-400 font-bold">?</span>
@@ -153,7 +155,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                         </button>
 
                         <a
-                            href="https://wa.me/972501234567"
+                            href="mailto:support@shiftswap.ai"
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={() => setIsProfileOpen(false)}
@@ -166,7 +168,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                         <div className="h-px bg-slate-100 my-1"></div>
 
                         <button
-                            onClick={() => { onLogout(); setIsProfileOpen(false); }}
+                            onClick={async () => {
+                                setIsProfileOpen(false);
+                                onLogout();
+                            }}
                             className="w-full text-right px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
                         >
                             <LogOut className="w-4 h-4" />
@@ -324,6 +329,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
                 {/* Global Modals */}
                 <UpgradeModal isOpen={isUpgradeOpen} onClose={() => setIsUpgradeOpen(false)} />
+                <HelpCenterModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
             </main>
         </div>
     );
