@@ -774,9 +774,9 @@ function SettingsView() {
                                 <button
                                     type="button"
                                     onClick={() => setLocalSettings({ ...localSettings, enableCashBonus: !localSettings.enableCashBonus })}
-                                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-2 ${localSettings.enableCashBonus ? 'bg-amber-400' : 'bg-slate-300'}`}
+                                    className={`relative w-11 h-6 shrink-0 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-2 ${localSettings.enableCashBonus ? 'bg-amber-400' : 'bg-slate-300'}`}
                                 >
-                                    <span className="inline-block h-4 w-4 rounded-full bg-white shadow-md transition-all duration-200" style={{ transform: localSettings.enableCashBonus ? 'translateX(22px)' : 'translateX(2px)' }} />
+                                    <span className="absolute top-1 w-4 h-4 rounded-full bg-white shadow-md transition-all duration-200" style={{ left: localSettings.enableCashBonus ? '22px' : '2px' }} />
                                 </button>
                             </div>
                             {localSettings.enableCashBonus && (
