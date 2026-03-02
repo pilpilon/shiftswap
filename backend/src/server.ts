@@ -21,7 +21,7 @@ export async function requireAuth(req: express.Request, res: express.Response, n
     try {
         const decoded = await getAuth().verifyIdToken(token);
         // We expect businessId in params or body
-        const requestedBusinessId = req.body.businessId || req.params.businessId;
+        const requestedBusinessId = req.body?.businessId || req.params?.businessId;
 
         // Admin/developer bypass via custom claims could go here
 
