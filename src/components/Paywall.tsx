@@ -115,7 +115,7 @@ export default function Paywall() {
                         <div className="bg-slate-50 border border-slate-200 p-6 rounded-2xl text-center flex-1 w-full shrink-0">
                             <div className="text-sm font-bold tracking-wider text-brand-blue mb-2 uppercase">למיקום יחיד</div>
                             <div className="flex items-center justify-center gap-1 mb-6">
-                                <span className="text-5xl font-extrabold text-slate-900">$40</span>
+                                <span className="text-5xl font-extrabold text-slate-900">₪120</span>
                                 <span className="text-slate-500 font-medium mt-2">/חודש</span>
                             </div>
                             <button

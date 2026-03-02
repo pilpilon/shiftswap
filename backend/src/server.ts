@@ -323,14 +323,20 @@ app.post('/api/whatsapp/publish-schedule', requireAuth, async (req, res) => {
     res.json({ sent: sentCount, errors });
 });
 
-// ─── Webhooks ──────────────────────────────────────────────────────────────
+// ─── Webhooks & Subscription Portal ──────────────────────────────────────────
 app.post('/api/webhooks/paddle', async (req, res) => {
     // In production, you must verify the Paddle webhook signature here
     // using Paddle SDK. For this fix, we process the payload directly.
     const payload = req.body;
 
-    if (payload.event_type === 'subscription.created' || payload.event_type === 'subscription.updated' || payload.event_type === 'transaction.completed') {
+    // Handle subscription events
+    if (
+        payload.event_type === 'subscription.created' ||
+        payload.event_type === 'subscription.updated' ||
+        payload.event_type === 'transaction.completed'
+    ) {
         const userId = payload.data?.custom_data?.userId || payload.data?.customData?.userId;
+        const subscriptionId = payload.data?.id || payload.data?.subscription_id; // Varies based on API v2 vs v1
 
         if (userId) {
             try {
@@ -338,9 +344,10 @@ app.post('/api/webhooks/paddle', async (req, res) => {
                 if (db) {
                     await db.collection('users').doc(userId).update({
                         isPro: true,
+                        paddleSubscriptionId: subscriptionId || null,
                         updatedAt: new Date().toISOString()
                     });
-                    console.log(`[PADDLE] Upgraded user ${userId} to Pro`);
+                    console.log(`[PADDLE] Upgraded user ${userId} to Pro. Syncing sub: ${subscriptionId}`);
                 }
             } catch (err) {
                 console.error('[PADDLE] Failed to update user to Pro:', err);
@@ -348,9 +355,108 @@ app.post('/api/webhooks/paddle', async (req, res) => {
         } else {
             console.warn('[PADDLE] Webhook received but no userId found in custom_data');
         }
+    } else if (payload.event_type === 'subscription.canceled') {
+        const userId = payload.data?.custom_data?.userId || payload.data?.customData?.userId;
+        if (userId) {
+            try {
+                const db = getFirestore();
+                if (db) {
+                    await db.collection('users').doc(userId).update({
+                        isPro: false,
+                        paddleSubscriptionId: null,
+                        updatedAt: new Date().toISOString()
+                    });
+                    console.log(`[PADDLE] Downgraded user ${userId} to Free (Canceled)`);
+                }
+            } catch (err) {
+                console.error('[PADDLE] Failed to downgrade user:', err);
+            }
+        }
     }
 
     res.status(200).send('OK');
+});
+
+// Endpoint to generate Paddle Customer Portal link
+app.post('/api/paddle/customer-portal', requireAuth, async (req, res) => {
+    try {
+        const userId = (req as any).user?.uid;
+        if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+        const db = getFirestore();
+        if (!db) return res.status(500).json({ error: 'Database error' });
+
+        // Get user from DB
+        const userDoc = await db.collection('users').doc(userId).get();
+        if (!userDoc.exists) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const userData = userDoc.data();
+        const customerId = userData?.paddleCustomerId; // If you save customer_id in webhook
+        const subscriptionId = userData?.paddleSubscriptionId;
+
+        if (!subscriptionId && !customerId) {
+            return res.status(400).json({ error: 'No active Paddle subscription found to manage.' });
+        }
+
+        const PADDLE_API_KEY = process.env.PADDLE_API_KEY;
+        const isSandbox = process.env.PADDLE_ENVIRONMENT === 'sandbox';
+        const PADDLE_API_URL = isSandbox ? 'https://sandbox-api.paddle.com' : 'https://api.paddle.com';
+
+        if (!PADDLE_API_KEY) {
+            console.error("Missing PADDLE_API_KEY environment variable. Cannot generate portal.");
+            return res.status(500).json({ error: 'System configuration error.' });
+        }
+
+        // Generate customer portal link using Paddle API (Requires Paddle Billing v2 API)
+        // In API v2: POST /customers/{customer_id}/portal-sessions or via transaction
+        let customerToUse = customerId;
+
+        // If we only have subscription ID from old webhooks, fetch it to get the customer
+        if (!customerToUse && subscriptionId) {
+            const subRes = await fetch(`${PADDLE_API_URL}/subscriptions/${subscriptionId}`, {
+                headers: { 'Authorization': `Bearer ${PADDLE_API_KEY}`, 'Content-Type': 'application/json' }
+            });
+            if (subRes.ok) {
+                const subData = await subRes.json() as any;
+                customerToUse = subData.data?.customer_id;
+
+                // Cache it for next time
+                if (customerToUse) {
+                    await db.collection('users').doc(userId).update({ paddleCustomerId: customerToUse });
+                }
+            }
+        }
+
+        if (!customerToUse) {
+            return res.status(400).json({ error: 'Could not associate subscription with Customer profile.' });
+        }
+
+        // Generate the portal session
+        const portalRes = await fetch(`${PADDLE_API_URL}/customers/${customerToUse}/portal-sessions`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${PADDLE_API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!portalRes.ok) {
+            const errBody = await portalRes.text();
+            console.error("Paddle Portal Error:", errBody);
+            return res.status(502).json({ error: 'Failed to generate billing portal.' });
+        }
+
+        const portalData = await portalRes.json() as any;
+
+        // Return the portal URL (cancelation, update payment method, invoices)
+        res.json({ url: portalData.data.urls.general.overview });
+
+    } catch (err) {
+        console.error("Portal Generation Error:", err);
+        res.status(500).json({ error: 'Internal server error while building portal link' });
+    }
 });
 
 app.listen(PORT, () => {

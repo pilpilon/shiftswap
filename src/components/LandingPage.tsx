@@ -168,8 +168,8 @@ export default function LandingPage() {
                                 <div className="p-8 pt-12 text-center border-b border-slate-100">
                                     <h3 className="text-2xl font-bold text-slate-900 mb-2">למיקום יחיד</h3>
                                     <p className="text-slate-500 mb-6">למסעדות, חנויות ואולמות אירועים</p>
-                                    <div className="flex items-center justify-center gap-1">
-                                        <span className="text-5xl font-extrabold text-slate-900">$40</span>
+                                    <div className="flex items-center justify-center gap-1 mb-8">
+                                        <span className="text-5xl font-extrabold text-slate-900">₪120</span>
                                         <span className="text-slate-500 font-medium mt-2">/חודש</span>
                                     </div>
                                 </div>
