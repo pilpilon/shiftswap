@@ -705,10 +705,10 @@ function SettingsView() {
                             rows={7}
                             className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl px-5 py-4 text-slate-800 text-sm leading-relaxed focus:outline-none focus:ring-0 focus:border-brand-blue focus:bg-white transition-all resize-none placeholder:text-slate-400 placeholder:leading-relaxed"
                             placeholder={`לדוגמה:
-• אל תציע בונוסים לעובדים שאיחרו יותר מ-2 פעמים החודש
-• אם עובד לוקח משמרת כפולה, הצע לו להחליף יום חופש
-• בשבתות — הצע רק לעובדים שלא עבדו שבת קודמת
-• עדיף לאייש עם עובדים בכירים לפני ניסיון עם חדשים`}
+• אם עובד מבקש תוספת תשלום על משמרת, סרב באדיבות והסבר שזה חורג מהתקציב.
+• אפשר להציע בונוס של עד 50 שקלים רק במקרה חירום של משמרת פתוחה לאותו היום.
+• במידה ועובד מסרב למשמרת, שאל אותו אם יש יום אחר השבוע בו יוכל לעזור.
+• סיים תמיד כל הודעה בברכת 'יום מקסים' או 'שבוע טוב'.`}
                             value={localSettings.customRules}
                             onChange={(e) => setLocalSettings({ ...localSettings, customRules: e.target.value })}
                             dir="rtl"
@@ -717,11 +717,15 @@ function SettingsView() {
                             <span className="absolute bottom-3 left-3 text-[10px] text-slate-300 font-medium">{localSettings.customRules.length} תווים</span>
                         )}
                     </div>
-                    <p className="text-xs text-slate-400 mt-3 flex items-start gap-1.5 flex-col pl-4 sm:flex-row sm:items-center pr-1">
-                        <span className="flex items-center gap-1.5"><Zap className="w-3 h-3 text-brand-gold fill-brand-gold shrink-0" />
-                            הנחיות אלו מוזנות ישירות לסוכן ה-AI ומשפיעות על כל שיחה עם עובד.</span>
-                        <span className="text-brand-blue/70 sm:border-r sm:border-brand-blue/20 sm:pr-2 block font-medium">אם לא תזין כלום, הבוט ישתמש בשיקול דעת בסיסי והגיוני לניהול השיחה.</span>
-                    </p>
+                    <div className="mt-3 bg-brand-blue/5 border border-brand-blue/10 rounded-xl p-3 flex flex-col gap-1">
+                        <p className="text-xs text-slate-700 flex items-center gap-1.5 font-bold">
+                            <Zap className="w-3.5 h-3.5 text-brand-gold fill-brand-gold shrink-0" />
+                            הנחיות אלו מסופקות ישירות לסוכן ה-AI.
+                        </p>
+                        <p className="text-xs text-slate-500 pr-5 leading-relaxed font-medium">
+                            במידה ולא תזין חוקים מיוחדים, הבוט ישתמש בשיקול דעתו הכללי כדי לנהל משא ומתן הגיוני ומנומס בנוגע להחלפות משמרות מול העובדים.
+                        </p>
+                    </div>
                 </div>
             </div>
 
