@@ -214,15 +214,17 @@ Open Shifts: ${shiftsStr}
                 const args = call.args as { days: string[], notes?: string };
                 console.log(`[AI] Availability submission detected: days=${args.days}, notes=${args.notes}`);
 
-                const weekKey = getCurrentWeekKey();
-                await saveAvailability(businessId, phone, weekKey, args.days, args.notes);
-
-                // Convert English enums back to Hebrew for user confirmation
+                // Convert English enums to Hebrew BEFORE saving — frontend queries by Hebrew names
                 const ENUM_TO_HEBREW: Record<string, string> = {
                     'SUNDAY': 'ראשון', 'MONDAY': 'שני', 'TUESDAY': 'שלישי',
                     'WEDNESDAY': 'רביעי', 'THURSDAY': 'חמישי', 'FRIDAY': 'שישי', 'SATURDAY': 'שבת'
                 };
-                const daysStr = args.days.map(d => ENUM_TO_HEBREW[d] || d).join(', ');
+                const hebrewDays = args.days.map(d => ENUM_TO_HEBREW[d] || d);
+
+                const weekKey = getCurrentWeekKey();
+                await saveAvailability(businessId, phone, weekKey, hebrewDays, args.notes);
+
+                const daysStr = hebrewDays.join(', ');
 
                 botReply = `מעולה, רשמתי! 📅\nימים פנויים: ${daysStr}`;
                 if (args.notes) {
