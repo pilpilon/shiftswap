@@ -328,46 +328,71 @@ app.post('/api/webhooks/paddle', async (req, res) => {
     // In production, you must verify the Paddle webhook signature here
     // using Paddle SDK. For this fix, we process the payload directly.
     const payload = req.body;
+    const eventType: string = payload.event_type;
 
-    // Handle subscription events
-    if (
-        payload.event_type === 'subscription.created' ||
-        payload.event_type === 'subscription.updated' ||
-        payload.event_type === 'transaction.completed'
-    ) {
-        const userId = payload.data?.custom_data?.userId || payload.data?.customData?.userId;
-        const subscriptionId = payload.data?.id || payload.data?.subscription_id; // Varies based on API v2 vs v1
+    const userId: string | undefined =
+        payload.data?.custom_data?.userId ||
+        payload.data?.customData?.userId;
 
-        if (userId) {
+    const db = getFirestore();
+
+    // ── Trial started (checkout with trial period active) ────────────────────
+    if (eventType === 'subscription.trialing') {
+        const subscriptionId = payload.data?.id;
+        const trialEndsAt = payload.data?.next_billed_at || null; // ISO date when billing starts
+
+        if (userId && db) {
             try {
-                const db = getFirestore();
-                if (db) {
-                    await db.collection('users').doc(userId).update({
-                        isPro: true,
-                        paddleSubscriptionId: subscriptionId || null,
-                        updatedAt: new Date().toISOString()
-                    });
-                    console.log(`[PADDLE] Upgraded user ${userId} to Pro. Syncing sub: ${subscriptionId}`);
-                }
+                await db.collection('users').doc(userId).update({
+                    isPro: true,            // Full access during trial
+                    isTrial: true,
+                    trialEndsAt,
+                    paddleSubscriptionId: subscriptionId || null,
+                    updatedAt: new Date().toISOString()
+                });
+                console.log(`[PADDLE] Trial started for user ${userId}. Ends: ${trialEndsAt}`);
+            } catch (err) {
+                console.error('[PADDLE] Failed to set trial for user:', err);
+            }
+        }
+
+        // ── Trial converted to paid / subscription created/updated ───────────────
+    } else if (
+        eventType === 'subscription.created' ||
+        eventType === 'subscription.updated' ||
+        eventType === 'transaction.completed'
+    ) {
+        const subscriptionId = payload.data?.id || payload.data?.subscription_id;
+
+        if (userId && db) {
+            try {
+                await db.collection('users').doc(userId).update({
+                    isPro: true,
+                    isTrial: false,         // Trial period is over, now a real subscriber
+                    trialEndsAt: null,
+                    paddleSubscriptionId: subscriptionId || null,
+                    updatedAt: new Date().toISOString()
+                });
+                console.log(`[PADDLE] Upgraded user ${userId} to Pro (paid). Sub: ${subscriptionId}`);
             } catch (err) {
                 console.error('[PADDLE] Failed to update user to Pro:', err);
             }
         } else {
             console.warn('[PADDLE] Webhook received but no userId found in custom_data');
         }
-    } else if (payload.event_type === 'subscription.canceled') {
-        const userId = payload.data?.custom_data?.userId || payload.data?.customData?.userId;
-        if (userId) {
+
+        // ── Subscription canceled ────────────────────────────────────────────────
+    } else if (eventType === 'subscription.canceled') {
+        if (userId && db) {
             try {
-                const db = getFirestore();
-                if (db) {
-                    await db.collection('users').doc(userId).update({
-                        isPro: false,
-                        paddleSubscriptionId: null,
-                        updatedAt: new Date().toISOString()
-                    });
-                    console.log(`[PADDLE] Downgraded user ${userId} to Free (Canceled)`);
-                }
+                await db.collection('users').doc(userId).update({
+                    isPro: false,
+                    isTrial: false,
+                    trialEndsAt: null,
+                    paddleSubscriptionId: null,
+                    updatedAt: new Date().toISOString()
+                });
+                console.log(`[PADDLE] Downgraded user ${userId} to Free (Canceled)`);
             } catch (err) {
                 console.error('[PADDLE] Failed to downgrade user:', err);
             }

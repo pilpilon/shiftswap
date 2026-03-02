@@ -114,9 +114,12 @@ export default function Paywall() {
 
                         <div className="bg-slate-50 border border-slate-200 p-6 rounded-2xl text-center flex-1 w-full shrink-0">
                             <div className="text-sm font-bold tracking-wider text-brand-blue mb-2 uppercase">למיקום יחיד</div>
-                            <div className="flex items-center justify-center gap-1 mb-6">
+                            <div className="flex items-center justify-center gap-1 mb-1">
                                 <span className="text-5xl font-extrabold text-slate-900">₪120</span>
                                 <span className="text-slate-500 font-medium mt-2">/חודש</span>
+                            </div>
+                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold mb-6">
+                                ✓ 14 ימים ראשונים — חינם לגמרי
                             </div>
                             <button
                                 onClick={handleSubscribe}
@@ -125,13 +128,13 @@ export default function Paywall() {
                             >
                                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
                                     <>
-                                        התחל מנוי עכשיו
+                                        התחל 14 ימי ניסיון חינם
                                         <ArrowLeft className="w-5 h-5" />
                                     </>
                                 )}
                             </button>
                             <p className="text-xs text-slate-400 mt-4 leading-relaxed">
-                                ללא התחייבות, תשלום מאובטח וקל לביטול בכל רגע נתון.
+                                לא חיוב היום. אחרי 14 יום — ₪120/חודש. ביטול חופשי בכל עת.
                             </p>
                         </div>
                     </div>

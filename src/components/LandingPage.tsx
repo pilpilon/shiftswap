@@ -1,5 +1,5 @@
 ﻿import { motion } from 'framer-motion';
-import { CalendarClock, MessageCircle, Zap, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { CalendarClock, MessageCircle, Zap, ShieldCheck, ArrowLeft, BrainCircuit } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function LandingPage() {
@@ -81,7 +81,7 @@ export default function LandingPage() {
                                     onClick={() => navigate('/login')}
                                     className="w-full sm:w-auto flex items-center justify-center gap-2 bg-brand-blue hover:bg-brand-blue/90 text-white px-8 py-4 rounded-full text-lg font-medium shadow-lg shadow-brand-blue/25 transition-all active:scale-95"
                                 >
-                                    התחילו עכשיו חינם
+                                    התחילו 14 ימי ניסיון חינם
                                     <ArrowLeft className="w-5 h-5" />
                                 </button>
                                 <button
@@ -119,11 +119,12 @@ export default function LandingPage() {
                 <section className="py-20 bg-white">
                     <div className="container mx-auto px-4">
                         <h2 className="text-3xl font-extrabold text-slate-900 text-center mb-12">ניהול משמרות חכם — ישירות בוואטסאפ</h2>
-                        <div className="grid md:grid-cols-3 gap-8">
+                        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
                             {[
                                 { icon: MessageCircle, title: 'משא ומתן אוטומטי', desc: 'הבוט מציע "קח את משמרת ערב, ותקבל את שישי חופש" לחלוטין לבד לפי חוקים שתגדירו.' },
                                 { icon: Zap, title: '100% בוואטסאפ', desc: 'אין צורך להוריד אפליקציה. העובדים כנראה כבר שם בכל מקרה, אז הבאנו את סידור העבודה אליהם.' },
                                 { icon: ShieldCheck, title: 'אבטחת הגעה', desc: 'וידוא הגעה אוטומטי 4 שעות לפני המשמרת. מישהו מבריז? המערכת כבר תמצא לו מחליף.' },
+                                { icon: BrainCircuit, title: 'AI שממלא פערים לבד', desc: 'הבוט מזהה משמרות ריקות בסידור שפורסם ויוצא מיוזמתו לחפש מתנדבים — לפני שאתם בכלל שמים לב לבעיה.' },
                             ].map((feature, i) => (
                                 <motion.div
                                     key={i}
@@ -144,7 +145,107 @@ export default function LandingPage() {
                     </div>
                 </section>
 
+                {/* How It Works */}
+                <section className="py-24 bg-slate-900 text-white relative overflow-hidden">
+                    <div className="container mx-auto px-4 relative z-10">
+                        <div className="max-w-3xl mx-auto text-center mb-16">
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true }}
+                                className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/20 text-sm font-medium text-brand-gold mb-6"
+                            >
+                                <Zap className="w-4 h-4 fill-brand-gold" />
+                                איך זה עובד?
+                            </motion.div>
+                            <motion.h2
+                                initial={{ opacity: 0, y: 20 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true }}
+                                transition={{ delay: 0.1 }}
+                                className="text-4xl lg:text-5xl font-extrabold tracking-tight mb-4"
+                            >
+                                מ-0 לסידור עבודה מנוהל
+                                <br /><span className="text-brand-gold">תוך 30 שניות</span>
+                            </motion.h2>
+                            <motion.p
+                                initial={{ opacity: 0 }}
+                                whileInView={{ opacity: 1 }}
+                                viewport={{ once: true }}
+                                transition={{ delay: 0.2 }}
+                                className="text-slate-400 text-lg"
+                            >
+                                עובד לבד. אתם רק מאשרים.
+                            </motion.p>
+                        </div>
+
+                        <div className="max-w-5xl mx-auto">
+                            <div className="grid md:grid-cols-4 gap-6 relative">
+                                {/* Connecting line desktop */}
+                                <div className="hidden md:block absolute top-10 left-[12.5%] right-[12.5%] h-px bg-gradient-to-r from-transparent via-brand-gold/40 to-transparent"></div>
+
+                                {[
+                                    {
+                                        step: '01', emoji: '📋', title: 'בונים סידור',
+                                        desc: 'מגדירים משמרות, תפקידים ועובדים. לוקח 5 דקות.',
+                                        color: 'from-blue-500/20 to-blue-600/10', border: 'border-blue-500/30', highlight: false,
+                                    },
+                                    {
+                                        step: '02', emoji: '📤', title: 'מפרסמים בוואטסאפ',
+                                        desc: 'לחיצה אחת — כל עובד מקבל את הסידור לנייד.',
+                                        color: 'from-emerald-500/20 to-emerald-600/10', border: 'border-emerald-500/30', highlight: false,
+                                    },
+                                    {
+                                        step: '03', emoji: '🤖', title: 'הבוט מנהל הכל',
+                                        desc: 'ביטולים, החלפות, וידוא הגעה — AI עושה זאת לבד.',
+                                        color: 'from-brand-gold/20 to-yellow-500/10', border: 'border-brand-gold/40', highlight: true,
+                                    },
+                                    {
+                                        step: '04', emoji: '✅', title: 'אתם רק מאשרים',
+                                        desc: 'קיבלתם התראה? אישרתם. זהו. הצוות מסודר.',
+                                        color: 'from-purple-500/20 to-purple-600/10', border: 'border-purple-500/30', highlight: false,
+                                    },
+                                ].map((item, i) => (
+                                    <motion.div
+                                        key={i}
+                                        initial={{ opacity: 0, y: 30 }}
+                                        whileInView={{ opacity: 1, y: 0 }}
+                                        viewport={{ once: true }}
+                                        transition={{ delay: i * 0.15 }}
+                                        className="relative flex flex-col items-center text-center px-2"
+                                    >
+                                        <div className={`relative z-10 w-20 h-20 rounded-2xl bg-gradient-to-br ${item.color} border ${item.border} flex flex-col items-center justify-center mb-6 ${item.highlight ? 'shadow-[0_0_30px_rgba(255,193,7,0.25)] scale-110' : ''}`}>
+                                            <span className="text-2xl mb-0.5">{item.emoji}</span>
+                                            <span className={`text-xs font-black tracking-widest ${item.highlight ? 'text-brand-gold' : 'text-slate-500'}`}>{item.step}</span>
+                                        </div>
+                                        <h3 className={`text-lg font-extrabold mb-2 ${item.highlight ? 'text-brand-gold' : 'text-white'}`}>{item.title}</h3>
+                                        <p className="text-slate-400 text-sm leading-relaxed">{item.desc}</p>
+
+                                        {/* WhatsApp mockup on the AI step */}
+                                        {item.highlight && (
+                                            <div className="mt-5 bg-[#111b21] rounded-2xl p-3 text-right w-full border border-white/10 shadow-2xl">
+                                                <div className="flex flex-col gap-2">
+                                                    <div className="self-end bg-[#005c4b] text-white text-xs rounded-xl rounded-tr-sm px-3 py-2 max-w-[90%] leading-relaxed">
+                                                        לא יכול להגיע ביום שלישי 😓
+                                                    </div>
+                                                    <div className="self-start bg-[#202c33] text-white text-xs rounded-xl rounded-tl-sm px-3 py-2 max-w-[90%] leading-relaxed">
+                                                        🤖 מצאתי 2 מחליפים פוטנציאלים...
+                                                    </div>
+                                                    <div className="self-start bg-[#202c33] text-emerald-400 text-xs rounded-xl rounded-tl-sm px-3 py-2 max-w-[90%] font-bold">
+                                                        ✅ ישראל הסכים! המנהל אושר.
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </motion.div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
                 {/* Pricing Section */}
+
                 <section className="py-24 bg-slate-50 relative overflow-hidden" id="pricing">
                     <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
                     <div className="container mx-auto px-4">
@@ -197,6 +298,7 @@ export default function LandingPage() {
                                     >
                                         התחל 14 ימי ניסיון חינם
                                     </button>
+                                    <p className="text-xs text-slate-400 text-center mt-3">לא חיוב היום. אחרי 14 יום — ₪120/חודש. ביטול חופשי בכל עת.</p>
                                 </div>
                             </motion.div>
                         </div>
