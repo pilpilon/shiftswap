@@ -893,24 +893,19 @@ export default function RosterView() {
 // ────────────────────────────────────────────────────────────────────────────
 function ShiftCard({ shift, staff, onRemove, onEdit, onUpdate }: { shift: Shift; staff: StaffMember[]; onRemove: () => void; onEdit: (e: React.MouseEvent) => void; onUpdate: (shiftId: string, updates: Partial<Shift>) => Promise<void> }) {
     const [confirmDelete, setConfirmDelete] = useState(false);
+    // Inline unassign confirm: tracks which {roleIndex, staffId} is pending
+    const [confirmUnassign, setConfirmUnassign] = useState<{ roleIndex: number; staffId: string } | null>(null);
     const roles = shift.roleRequirements ?? [];
     const isFilled = shift.filledCount >= shift.totalRequired;
 
-    const handleUnassign = async (e: React.MouseEvent, roleIndex: number, staffId: string) => {
-        e.stopPropagation();
-        if (!confirm('האם להסיר את העובד מהמשמרת?')) return;
-
+    const doUnassign = async (roleIndex: number, staffId: string) => {
         const updatedRoles = [...roles];
         const role = updatedRoles[roleIndex];
         role.assignedIds = (role.assignedIds || []).filter(id => id !== staffId);
-
         const newFilledCount = updatedRoles.reduce((sum, r) => sum + (r.assignedIds?.length || 0), 0);
-
+        setConfirmUnassign(null);
         try {
-            await onUpdate(shift.id, {
-                roleRequirements: updatedRoles,
-                filledCount: newFilledCount
-            });
+            await onUpdate(shift.id, { roleRequirements: updatedRoles, filledCount: newFilledCount });
         } catch (err) {
             console.error('Failed to unassign staff:', err);
             alert('שגיאה בהסרת עובד');
@@ -999,17 +994,33 @@ function ShiftCard({ shift, staff, onRemove, onEdit, onUpdate }: { shift: Shift;
                                         {r.assignedIds.map(id => {
                                             const member = staff.find(s => s.id === id);
                                             const name = member?.name || 'עובד שנמחק';
-                                            return (
+                                            const isPendingConfirm = confirmUnassign?.roleIndex === i && confirmUnassign?.staffId === id;
+                                            return isPendingConfirm ? (
+                                                <span key={id} className="inline-flex items-center gap-1 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded text-xs animate-in fade-in zoom-in duration-200">
+                                                    <span className="text-rose-700 font-bold">להסיר?</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => { e.stopPropagation(); doUnassign(i, id); }}
+                                                        className="bg-rose-600 text-white px-2 py-0.5 rounded hover:bg-rose-700 transition font-bold"
+                                                    >כן</button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => { e.stopPropagation(); setConfirmUnassign(null); }}
+                                                        className="bg-white text-slate-600 border border-slate-300 px-2 py-0.5 rounded hover:bg-slate-50 transition"
+                                                    >לא</button>
+                                                </span>
+                                            ) : (
                                                 <button
                                                     key={id}
-                                                    onClick={(e) => handleUnassign(e, i, id)}
+                                                    type="button"
+                                                    onClick={(e) => { e.stopPropagation(); setConfirmUnassign({ roleIndex: i, staffId: id }); }}
                                                     className="inline-flex items-center gap-1 bg-white/60 hover:bg-rose-100 hover:text-rose-700 px-2 py-0.5 rounded border border-transparent hover:border-rose-200 transition-colors group"
                                                     title="הסר עובד ממשמרת"
                                                 >
                                                     {name}
                                                     <Trash2 className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                                                 </button>
-                                            )
+                                            );
                                         })}
                                     </div>
                                 ) : (
