@@ -707,7 +707,7 @@ function SettingsView() {
                             placeholder={`לדוגמה:
 • אל תציע בונוסים לעובדים שאיחרו יותר מ-2 פעמים החודש
 • אם עובד לוקח משמרת כפולה, הצע לו להחליף יום חופש
-• בשבתות — אל תפנה לעובדים מתחת לגיל 21
+• בשבתות — הצע רק לעובדים שלא עבדו שבת קודמת
 • עדיף לאייש עם עובדים בכירים לפני ניסיון עם חדשים`}
                             value={localSettings.customRules}
                             onChange={(e) => setLocalSettings({ ...localSettings, customRules: e.target.value })}
@@ -717,9 +717,10 @@ function SettingsView() {
                             <span className="absolute bottom-3 left-3 text-[10px] text-slate-300 font-medium">{localSettings.customRules.length} תווים</span>
                         )}
                     </div>
-                    <p className="text-xs text-slate-400 mt-3 flex items-center gap-1.5">
-                        <Zap className="w-3 h-3 text-brand-gold fill-brand-gold shrink-0" />
-                        הנחיות אלו מוזנות ישירות לסוכן ה-AI ומשפיעות על כל שיחה עם עובד.
+                    <p className="text-xs text-slate-400 mt-3 flex items-start gap-1.5 flex-col pl-4 sm:flex-row sm:items-center pr-1">
+                        <span className="flex items-center gap-1.5"><Zap className="w-3 h-3 text-brand-gold fill-brand-gold shrink-0" />
+                            הנחיות אלו מוזנות ישירות לסוכן ה-AI ומשפיעות על כל שיחה עם עובד.</span>
+                        <span className="text-brand-blue/70 sm:border-r sm:border-brand-blue/20 sm:pr-2 block font-medium">אם לא תזין כלום, הבוט ישתמש בשיקול דעת בסיסי והגיוני לניהול השיחה.</span>
                     </p>
                 </div>
             </div>
