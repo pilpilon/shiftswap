@@ -220,7 +220,11 @@ export default function RosterView() {
         try {
             const results = await runAutoAssign(currentWeekShifts, staff, user?.businessId);
             const filled = results.filter(r => r.filledCount > 0).length;
-            setAssignMsg(`✅ שיבוץ הושלם — ${filled} משמרות קיבלו כיסוי`);
+            if (filled === 0 && submittedCount === 0) {
+                setAssignMsg('✅ שיבוץ הושלם — השיבוץ היה 0 כי אף עובד לא הגיש משמרת');
+            } else {
+                setAssignMsg(`✅ שיבוץ הושלם — ${filled} משמרות קיבלו כיסוי`);
+            }
         } catch (err) {
             console.error('Auto-assign error', err);
             setAssignMsg('❌ שגיאה בשיבוץ אוטומטי');
