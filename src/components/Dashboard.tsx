@@ -705,10 +705,10 @@ function SettingsView() {
                             rows={7}
                             className="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl px-5 py-4 text-slate-800 text-sm leading-relaxed focus:outline-none focus:ring-0 focus:border-brand-blue focus:bg-white transition-all resize-none placeholder:text-slate-400 placeholder:leading-relaxed"
                             placeholder={`לדוגמה:
-• אם עובד מבקש תוספת תשלום על משמרת, סרב באדיבות והסבר שזה חורג מהתקציב.
-• אפשר להציע בונוס של עד 50 שקלים רק במקרה חירום של משמרת פתוחה לאותו היום.
-• במידה ועובד מסרב למשמרת, שאל אותו אם יש יום אחר השבוע בו יוכל לעזור.
-• סיים תמיד כל הודעה בברכת 'יום מקסים' או 'שבוע טוב'.`}
+• במידה ועובד מסרב, שאל בנימוס אם יש יום אחר השבוע בו יוכל לעזור.
+• אל תפנה לאותו עובד יותר מפעמיים על אותה משמרת.
+• סיים כל הודעה בברכה חמה כמו 'תודה רבה' או 'שבוע טוב'.
+• אם עובד מבקש חופשה, אשר ותוסיף 'אעדכן את המנהל'.`}
                             value={localSettings.customRules}
                             onChange={(e) => setLocalSettings({ ...localSettings, customRules: e.target.value })}
                             dir="rtl"
