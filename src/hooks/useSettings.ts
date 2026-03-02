@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 export interface AppSettings {
     enableWeekendSwaps: boolean;
     enableCashBonus: boolean;
+    maxBonusAmount: number; // Maximum bonus allowed per shift (ILS)
     enableTaxi: boolean;
     botTone: string;
     warningHours: number;
@@ -19,7 +20,8 @@ export interface AppSettings {
 
 const defaultSettings: AppSettings = {
     enableWeekendSwaps: true,
-    enableCashBonus: true,
+    enableCashBonus: false,   // OFF by default — manager must explicitly enable
+    maxBonusAmount: 50,       // ILS, used only when enableCashBonus is true
     enableTaxi: false,
     botTone: 'צעיר וקליל (אחי, מה קורה?)',
     warningHours: 24,

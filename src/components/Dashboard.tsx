@@ -760,7 +760,46 @@ function SettingsView() {
                             <p className="text-xs text-slate-500 mt-2">מספר השעות לפני תחילת משמרת ריקה בהן הבוט יתחיל לפנות עצמאית לשאר הצוות.</p>
                         </div>
 
+                        {/* Bonus Control */}
+                        <div className={`rounded-xl border p-4 transition-all ${localSettings.enableCashBonus ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'}`}>
+                            <div className="flex items-center justify-between mb-2">
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-800">💰 בונוס כספי לעובדים</label>
+                                    <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                                        {localSettings.enableCashBonus
+                                            ? 'הבוט מורשה להציע בונוס — לא יעלה על הסכום שקבעת:'
+                                            : 'כבוי — הבוט לא יציע שום תמריץ כספי. מומלץ לשמור כך.'}
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setLocalSettings({ ...localSettings, enableCashBonus: !localSettings.enableCashBonus })}
+                                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-2 ${localSettings.enableCashBonus ? 'bg-amber-400' : 'bg-slate-300'}`}
+                                >
+                                    <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-md transform transition-transform ${localSettings.enableCashBonus ? 'translate-x-1' : '-translate-x-5'}`} style={{ transform: localSettings.enableCashBonus ? 'translateX(22px)' : 'translateX(2px)' }} />
+                                </button>
+                            </div>
+                            {localSettings.enableCashBonus && (
+                                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-amber-200">
+                                    <label className="text-xs font-bold text-slate-700 whitespace-nowrap">תקרת בונוס מקסימלית:</label>
+                                    <div className="flex items-center gap-1 bg-white border border-amber-300 rounded-xl px-3 py-1.5 flex-1 max-w-[120px]">
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={500}
+                                            value={localSettings.maxBonusAmount ?? 50}
+                                            onChange={(e) => setLocalSettings({ ...localSettings, maxBonusAmount: Number(e.target.value) })}
+                                            className="w-full bg-transparent text-slate-800 text-sm font-bold focus:outline-none text-center"
+                                        />
+                                        <span className="text-xs text-slate-500 font-medium">₪</span>
+                                    </div>
+                                    <p className="text-xs text-amber-700 font-medium">לכל משמרת</p>
+                                </div>
+                            )}
+                        </div>
+
                         {/* Bot Active Hours */}
+
                         <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
                             <label className="block text-sm font-bold text-slate-700 mb-1">🕐 שעות פעילות הבוט</label>
                             <p className="text-xs text-slate-500 mb-3 leading-relaxed">

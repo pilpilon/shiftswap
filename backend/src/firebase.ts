@@ -37,23 +37,29 @@ function logTtlExpiry(): string {
 // Data Access Helpers
 export async function getBusinessRules(businessId: string): Promise<string> {
     if (!db) {
-        return `
-            - Max instant bonus: 50.
-            - Taxis: Approved for closing shifts only.
-            - Swaps permitted if roles match.
-         `;
+        return '- Bonuses: NOT ALLOWED.';
     }
 
     try {
-        const doc = await db.collection('businesses').doc(businessId).collection('settings').doc('rules').get();
-        if (doc.exists) {
-            const data = doc.data();
-            return data?.rulesText || "";
+        // Settings are stored on the user doc (users/{userId}.settings)
+        const usersSnap = await db.collection('users').where('businessId', '==', businessId).limit(1).get();
+        if (!usersSnap.empty) {
+            const settings = usersSnap.docs[0].data().settings || {};
+            const customRules: string = settings.customRules || '';
+            const enableCashBonus: boolean = settings.enableCashBonus ?? false;
+            const maxBonusAmount: number = settings.maxBonusAmount ?? 50;
+
+            // Build unified rules string
+            const bonusRule = enableCashBonus
+                ? `- Cash Bonus Policy: ALLOWED. You MAY offer a financial bonus of up to ${maxBonusAmount}₪ per shift, but ONLY as a last resort.`
+                : `- Cash Bonus Policy: STRICTLY FORBIDDEN. Do NOT offer any bonus, extra pay, or monetary incentive under any circumstances.`;
+
+            return `${bonusRule}\n${customRules ? `- Manager Custom Rules:\n${customRules}` : ''}`.trim();
         }
     } catch (err) {
-        console.error("Error fetching business rules:", err);
+        console.error('Error fetching business rules:', err);
     }
-    return "";
+    return '- Bonuses: NOT ALLOWED.';
 }
 
 export async function getOpenShifts(businessId: string): Promise<{ id: string; role: string; date: string; isUrgent: boolean }[]> {
