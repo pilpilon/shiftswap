@@ -66,15 +66,38 @@ export default function LandingPage() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.5, delay: 0.2 }}
-                                className="text-xl text-slate-600 max-w-2xl mx-auto"
+                                className="text-xl text-slate-600 max-w-2xl mx-auto mb-4"
                             >
                                 רובוט AI חכם שמנהל משא ומתן עם העובדים שלכם, סוגר משמרות ברגע האחרון, וחוסך לכם את הכאב ראש של טלפונים והודעות סרק.
                             </motion.p>
 
+                            {/* Product Video Demo - Anti AI Slop Styling */}
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ duration: 0.6, delay: 0.3 }}
+                                className="relative mx-auto max-w-4xl pt-4 pb-8"
+                            >
+                                <div className="absolute inset-0 bg-gradient-to-tr from-brand-blue/30 to-[#CCFF00]/20 blur-3xl -z-10 rounded-full" />
+                                <div className="bg-slate-950 p-2 sm:p-4 rounded-[2rem] border border-white/10 shadow-[0_20px_60px_-15px_rgba(204,255,0,0.15)] backdrop-blur-xl relative overflow-hidden group">
+                                    <video
+                                        src="/shiftswap-demo.mp4"
+                                        autoPlay
+                                        loop
+                                        muted
+                                        playsInline
+                                        className="w-full h-auto rounded-[1.5rem] bg-black object-cover"
+                                        poster="/og-image.png"
+                                    />
+                                    {/* Subtle gradient overlay to tie into the UI */}
+                                    <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-slate-950/40 to-transparent pointer-events-none rounded-b-[1.5rem]"></div>
+                                </div>
+                            </motion.div>
+
                             <motion.div
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.5, delay: 0.3 }}
+                                transition={{ duration: 0.5, delay: 0.4 }}
                                 className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4"
                             >
                                 <button
