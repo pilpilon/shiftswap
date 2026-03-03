@@ -82,6 +82,9 @@ export default function LandingPage() {
                                 <div className="bg-slate-950 p-2 sm:p-4 rounded-[2rem] border border-white/10 shadow-[0_20px_60px_-15px_rgba(204,255,0,0.15)] backdrop-blur-xl relative overflow-hidden group">
                                     <video
                                         src="/shiftswap-demo.mp4"
+                                        autoPlay
+                                        loop
+                                        muted
                                         controls
                                         playsInline
                                         className="w-full h-auto rounded-[1.5rem] bg-black object-cover relative z-10"
