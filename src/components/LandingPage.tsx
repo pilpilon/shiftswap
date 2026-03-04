@@ -84,7 +84,6 @@ export default function LandingPage() {
                                         src="/shiftswap-demo.mp4"
                                         autoPlay
                                         loop
-                                        muted
                                         controls
                                         playsInline
                                         className="w-full h-auto rounded-[1.5rem] bg-black object-cover relative z-10"
