@@ -29,7 +29,7 @@ export default function Paywall() {
             if (clientToken) {
                 try {
                     const paddleInstance = await initializePaddle({
-                        environment: 'sandbox', // Use 'production' for live
+                        environment: (import.meta.env.VITE_PADDLE_ENV as 'sandbox' | 'production') || 'sandbox',
                         token: clientToken,
                         eventCallback: async (data) => {
                             if (data.name === 'checkout.completed') {

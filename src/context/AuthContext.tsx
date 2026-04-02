@@ -20,6 +20,7 @@ export interface User {
     isPro?: boolean;
     isTrial?: boolean;        // true while in free trial period
     trialEndsAt?: string;    // ISO date string from Paddle (next_billed_at)
+    onboardingCompleted?: boolean;
 }
 
 interface AuthContextType {
@@ -54,7 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                             role: data.role || 'manager',
                             isPro: data.isPro || false,
                             isTrial: data.isTrial || false,
-                            trialEndsAt: data.trialEndsAt || null
+                            trialEndsAt: data.trialEndsAt || null,
+                            onboardingCompleted: data.onboardingCompleted || false
                         });
                     } else {
                         // Fallback if doc doesn't exist yet but user is auth'd

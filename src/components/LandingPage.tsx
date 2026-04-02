@@ -125,9 +125,9 @@ export default function LandingPage() {
                     <div className="container mx-auto px-4">
                         <div className="grid grid-cols-3 gap-4 max-w-2xl mx-auto text-center">
                             {[
-                                { value: '2+', label: 'שעות שחוסכות ביום' },
-                                { value: '94%', label: 'כיסוי משמרות ראשון לאחרון' },
-                                { value: '30 שניות', label: 'זמן ממוצע לסגירת משמרת' },
+                                { value: '100%', label: 'אוטומציה בוואטסאפ' },
+                                { value: '24/7', label: 'הבוט תמיד זמין' },
+                                { value: '0', label: 'אפליקציות להתקין' },
                             ].map((stat, i) => (
                                 <motion.div key={i} initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}>
                                     <div className="text-3xl font-extrabold text-brand-gold">{stat.value}</div>
@@ -146,7 +146,7 @@ export default function LandingPage() {
                             {[
                                 { icon: MessageCircle, title: 'משא ומתן אוטומטי', desc: 'הבוט מציע "קח את משמרת ערב, ותקבל את שישי חופש" לחלוטין לבד לפי חוקים שתגדירו.' },
                                 { icon: Zap, title: '100% בוואטסאפ', desc: 'אין צורך להוריד אפליקציה. העובדים כנראה כבר שם בכל מקרה, אז הבאנו את סידור העבודה אליהם.' },
-                                { icon: ShieldCheck, title: 'אבטחת הגעה', desc: 'וידוא הגעה אוטומטי 4 שעות לפני המשמרת. מישהו מבריז? המערכת כבר תמצא לו מחליף.' },
+                                { icon: ShieldCheck, title: 'תזכורות חכמות', desc: 'תזכורות אוטומטיות לעובדים לפני משמרות. ביטול? הבוט כבר מחפש מחליף באופן אוטומטי.' },
                                 { icon: BrainCircuit, title: 'AI שממלא פערים לבד', desc: 'הבוט מזהה משמרות ריקות בסידור שפורסם ויוצא מיוזמתו לחפש מתנדבים — לפני שאתם בכלל שמים לב לבעיה.' },
                             ].map((feature, i) => (
                                 <motion.div
@@ -189,7 +189,7 @@ export default function LandingPage() {
                                 className="text-4xl lg:text-5xl font-extrabold tracking-tight mb-4"
                             >
                                 מ-0 לסידור עבודה מנוהל
-                                <br /><span className="text-brand-gold">תוך 30 שניות</span>
+                                <br /><span className="text-brand-gold">בלי לגעת בטלפון</span>
                             </motion.h2>
                             <motion.p
                                 initial={{ opacity: 0 }}
@@ -220,7 +220,7 @@ export default function LandingPage() {
                                     },
                                     {
                                         step: '03', emoji: '🤖', title: 'הבוט מנהל הכל',
-                                        desc: 'ביטולים, החלפות, וידוא הגעה — AI עושה זאת לבד.',
+                                        desc: 'ביטולים, החלפות, ומילוי פערים — AI עושה זאת לבד.',
                                         color: 'from-brand-gold/20 to-yellow-500/10', border: 'border-brand-gold/40', highlight: true,
                                     },
                                     {

@@ -26,7 +26,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                         businessName: businessName,
                         name: user.name || 'Google User',
                         businessId: user.id,
-                        role: 'manager'
+                        role: 'manager',
+                        onboardingCompleted: true
                     }, { merge: true });
                 }
                 onComplete();

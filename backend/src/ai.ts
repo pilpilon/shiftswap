@@ -44,8 +44,7 @@ export async function processIncomingMessage(
     // Fetch conversation history
     let historyContents: { role: string; parts: { text: string }[] }[] = [];
     try {
-        const historySnapshot = await db.collection('negotiation_logs')
-            .where('businessId', '==', businessId)
+        const historySnapshot = await db.collection('businesses').doc(businessId).collection('negotiation_logs')
             .where('remoteJid', '==', remoteJid)
             .orderBy('timestamp', 'desc')
             .limit(10)

@@ -1,6 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import crypto from 'crypto';
 import { getAuth } from 'firebase-admin/auth';
 import { initWhatsAppSocket, activeSockets, qrCodes, pendingSockets, getPairingCode } from './whatsapp';
 import { getFirestore, sweepStaleLocks } from './firebase';
@@ -10,7 +13,17 @@ import { startReminderScheduler } from './scheduler';
 dotenv.config();
 
 const app = express();
-app.use(cors());
+
+// Security headers
+app.use(helmet());
+
+// CORS whitelist
+const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173').split(',');
+app.use(cors({ origin: allowedOrigins }));
+
+// Rate limiting
+app.use(rateLimit({ windowMs: 60_000, max: 100 }));
+
 app.use(express.json());
 
 // ─── Authentication Middleware ───────────────────────────────────────────────
@@ -23,12 +36,14 @@ export async function requireAuth(req: express.Request, res: express.Response, n
         // We expect businessId in params or body
         const requestedBusinessId = req.body?.businessId || req.params?.businessId;
 
-        // Admin/developer bypass via custom claims could go here
+        if (!requestedBusinessId) {
+            return res.status(400).json({ error: 'Bad Request: businessId is required' });
+        }
 
         // Ensure the authenticated user owns this business data
-        if (requestedBusinessId && decoded.uid !== requestedBusinessId) {
+        if (decoded.uid !== requestedBusinessId) {
             console.error(`[AUTH] 403 Mismatch - Token UID: "${decoded.uid}", Requested ID: "${requestedBusinessId}"`);
-            return res.status(403).json({ error: 'Forbidden: Business ID mismatch', expected: requestedBusinessId, got: decoded.uid });
+            return res.status(403).json({ error: 'Forbidden: Business ID mismatch' });
         }
 
         // Attach decoded user to request for downstream use if needed
@@ -324,10 +339,36 @@ app.post('/api/whatsapp/publish-schedule', requireAuth, async (req, res) => {
 });
 
 // ─── Webhooks & Subscription Portal ──────────────────────────────────────────
-app.post('/api/webhooks/paddle', async (req, res) => {
-    // In production, you must verify the Paddle webhook signature here
-    // using Paddle SDK. For this fix, we process the payload directly.
-    const payload = req.body;
+app.post('/api/webhooks/paddle', express.raw({ type: 'application/json' }), async (req, res) => {
+    // Verify Paddle webhook signature
+    const PADDLE_WEBHOOK_SECRET = process.env.PADDLE_WEBHOOK_SECRET;
+    if (PADDLE_WEBHOOK_SECRET) {
+        const signature = req.headers['paddle-signature'] as string;
+        if (!signature) {
+            console.error('[PADDLE] Missing Paddle-Signature header');
+            return res.status(401).send('Missing signature');
+        }
+        try {
+            const parts: Record<string, string> = {};
+            for (const pair of signature.split(';')) {
+                const [key, val] = pair.split('=');
+                parts[key] = val;
+            }
+            const ts = parts['ts'];
+            const h1 = parts['h1'];
+            if (!ts || !h1) throw new Error('Malformed signature');
+            const payload_to_sign = `${ts}:${typeof req.body === 'string' ? req.body : JSON.stringify(req.body)}`;
+            const expected = crypto.createHmac('sha256', PADDLE_WEBHOOK_SECRET).update(payload_to_sign).digest('hex');
+            if (expected !== h1) throw new Error('Signature mismatch');
+        } catch (err) {
+            console.error('[PADDLE] Webhook signature verification failed:', err);
+            return res.status(401).send('Invalid signature');
+        }
+    } else {
+        console.warn('[PADDLE] PADDLE_WEBHOOK_SECRET not set — webhook signature verification disabled!');
+    }
+
+    const payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     const eventType: string = payload.event_type;
 
     const userId: string | undefined =

@@ -31,7 +31,7 @@ function AppContent() {
       <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={
         isAuthenticated ? (
-          user?.businessName === "My Business" || user?.businessName === "הקפה של ירדן"
+          !user?.onboardingCompleted
             ? <Onboarding onComplete={() => window.location.reload()} />
             : !user?.isPro
               ? <Paywall />
